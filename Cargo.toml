@@ -1,0 +1,11 @@
+[package]
+name = "ckia"
+version = "0.1.0"
+edition = "2021"
+license = "MIT or Apache-2.0"
+repository = "https://github.com/coderedart/ckia.git"
+homepage = "https://github.com/coderedart/ckia.git"
+documentation = "https://docs.rs/ckia"
+
+[dependencies]
+ckia_sys = { version = "121" }
