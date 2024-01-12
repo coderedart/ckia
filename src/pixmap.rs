@@ -14,8 +14,8 @@ impl<'a, T> Drop for PixMap<'a, T> {
         unsafe { sk_pixmap_destructor(self.inner) }
     }
 }
-impl PixMap<'static, ()> {
-    pub fn new() -> Self {
+impl Default for PixMap<'static, ()> {
+    fn default() -> Self {
         let inner = unsafe { sk_pixmap_new() };
         assert!(!inner.is_null());
         PixMap {
@@ -60,12 +60,15 @@ impl<'a, T> PixMap<'a, T> {
             transmute(self)
         }
     }
+
+    /// returns true on success.
+    #[must_use]
     pub fn encode_png(
         &self,
         stream: &mut impl WStream,
         png_filter_flags: Option<PngFilterFlags>,
         z_lib_level: Option<i32>,
-    ) -> Result<(), ()> {
+    ) -> bool {
         let options = sk_pngencoder_options_t {
             fFilterFlags: png_filter_flags
                 .unwrap_or(PngFilterFlags::ALL_SK_PNGENCODER_FILTER_FLAGS),
@@ -74,13 +77,7 @@ impl<'a, T> PixMap<'a, T> {
             fICCProfile: std::ptr::null(),
             fICCProfileDescription: std::ptr::null(),
         };
-        unsafe {
-            if sk_pngencoder_encode(stream.borrow_wstream_mut_ptr(), self.inner, &options as _) {
-                Ok(())
-            } else {
-                Err(())
-            }
-        }
+        unsafe { sk_pngencoder_encode(stream.borrow_wstream_mut_ptr(), self.inner, &options as _) }
     }
 }
 /*

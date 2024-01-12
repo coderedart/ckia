@@ -1,6 +1,6 @@
 use ckia_sys::*;
 
-use crate::{opaque_shared, BlendMode, Color, Color4f, ColorSpace};
+use crate::{filter::ColorFilter, opaque_shared, BlendMode, Color, Color4f, ColorSpace};
 
 opaque_shared!(Shader, sk_shader_t, sk_shader_unref, sk_shader_ref);
 
@@ -10,11 +10,12 @@ impl Shader {
         shader: *const sk_shader_t,
         localMatrix: *const sk_matrix_t,
     ) -> *mut sk_shader_t;
-    pub fn sk_shader_with_color_filter(
-        shader: *const sk_shader_t,
-        filter: *const sk_colorfilter_t,
-    ) -> *mut sk_shader_t;
     */
+    pub fn with_color_filter(&self, filter: &ColorFilter) -> Self {
+        let inner = unsafe { sk_shader_with_color_filter(self.inner, filter.inner) };
+        assert!(!inner.is_null());
+        Self { inner }
+    }
     pub fn new_empty() -> Self {
         let inner = unsafe { sk_shader_new_empty() };
         assert!(!inner.is_null());

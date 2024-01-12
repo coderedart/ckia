@@ -21,7 +21,7 @@ impl Default for ImageInfo {
 impl Drop for ImageInfo {
     fn drop(&mut self) {
         unsafe {
-            ColorSpace::from_owned_ptr(self.0.colorspace);
+            ColorSpace::try_from_owned_ptr(self.0.colorspace);
         }
     }
 }
@@ -55,7 +55,7 @@ impl ImageInfo {
     }
     pub fn set_color_space(&mut self, cs: ColorSpace) {
         unsafe {
-            std::mem::drop(ColorSpace::from_owned_ptr(self.0.colorspace));
+            std::mem::drop(ColorSpace::try_from_owned_ptr(self.0.colorspace));
             self.0.colorspace = cs.into_owned_ptr();
         }
     }

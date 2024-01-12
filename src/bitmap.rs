@@ -6,11 +6,12 @@ use crate::{image_info::ImageInfo, opaque_unique, pixmap::PixMap, Color, IRect};
 
 opaque_unique!(BitMap, sk_bitmap_t, sk_bitmap_destructor);
 
-impl BitMap {
-    pub fn new() -> Self {
-        let inner = unsafe { sk_bitmap_new() };
-        Self { inner }
+impl Default for BitMap {
+    fn default() -> Self {
+        unsafe { Self::from_owned_ptr(sk_bitmap_new()) }
     }
+}
+impl BitMap {
     pub fn get_info(&mut self) -> ImageInfo {
         let mut info = ImageInfo::default();
         unsafe {
@@ -82,22 +83,15 @@ impl BitMap {
         }
         colors
     }
-    pub fn try_alloc_pixels(
-        &mut self,
-        requested_info: &ImageInfo,
-        row_bytes: usize,
-    ) -> Result<(), &'static str> {
+    #[must_use]
+    pub fn try_alloc_pixels(&mut self, requested_info: &ImageInfo, row_bytes: usize) -> bool {
         assert!(
             requested_info.get_width() as usize * requested_info.bytes_per_pixel() as usize
                 <= row_bytes
                 || row_bytes == 0,
             "invalid row bytes value"
         );
-        if unsafe { sk_bitmap_try_alloc_pixels(self.inner, &requested_info.0 as _, row_bytes) } {
-            Ok(())
-        } else {
-            Err("failed to allocate pixels")
-        }
+        unsafe { sk_bitmap_try_alloc_pixels(self.inner, &requested_info.0 as _, row_bytes) }
     }
     pub fn swap(&mut self, other: &mut Self) {
         unsafe {
@@ -128,6 +122,9 @@ impl BitMap {
     ) -> bool;
     pub fn sk_bitmap_set_pixels(cbitmap: *mut sk_bitmap_t, pixels: *mut ::std::os::raw::c_void);
      */
+    /// We consume by self here because we need to change the lifetime of the pixmap (and by extension its type)
+    /// If we succeed, we will return the pixmap with lifetime attached to this bitmap.
+    /// If we fail, we will just return the pixmap with the previous lifetime, as pixmap won't be touched in the failure case
     pub fn peek_pixels<'a, 'b, T>(
         &mut self,
         pixmap: PixMap<'b, T>,

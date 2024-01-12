@@ -2,11 +2,11 @@ use std::ffi::CStr;
 
 use ckia::{
     bitmap::BitMap, canvas::Canvas, color::ColorSpace, image_info::ImageInfo, pixmap::PixMap,
-    stream::FileWStream, AlphaType, ColorType, Color,
+    stream::FileWStream, AlphaType, Color, ColorType,
 };
 
 fn main() {
-    let mut bm = BitMap::new();
+    let mut bm = BitMap::default();
     let mut info = ImageInfo::default();
     info.set_color_type(ColorType::BGRA_8888_SK_COLORTYPE);
     info.set_alpha_type(AlphaType::PREMUL_SK_ALPHATYPE);
@@ -14,7 +14,9 @@ fn main() {
     info.set_height(100);
     info.set_color_space(ColorSpace::new_srgb());
 
-    bm.try_alloc_pixels(&info, 0).unwrap();
+    if !bm.try_alloc_pixels(&info, 0) {
+        panic!("failed to allocate pixels")
+    }
     assert!(bm.ready_to_draw());
     {
         let mut canvas = Canvas::from_bitmap(&bm);
@@ -22,10 +24,10 @@ fn main() {
     }
     let mut fstream = FileWStream::new(CStr::from_bytes_with_nul(b"./skia_bitmap.png\0").unwrap())
         .expect("failed to open file");
-    let pixmap = PixMap::new();
+    let pixmap = PixMap::default();
     if let Ok(pixmap) = bm.peek_pixels(pixmap) {
-        pixmap
-            .encode_png(&mut fstream, None, None)
-            .expect("failed to write to file");
+        if !pixmap.encode_png(&mut fstream, None, None) {
+            panic!("failed to encode pixmap to png")
+        }
     }
 }

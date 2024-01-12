@@ -4,14 +4,21 @@ use sys::*;
 pub mod bitmap;
 pub mod canvas;
 pub mod color;
+pub mod data;
 pub mod filter;
 pub mod geometry;
 pub mod image;
 pub mod image_info;
+pub mod matrix;
 pub mod paint;
+pub mod path;
+pub mod path_effect;
 pub mod pixmap;
+pub mod region;
+pub mod rrect;
 pub mod shader;
 pub mod stream;
+pub mod string;
 
 pub use color::*;
 pub use geometry::*;
@@ -24,7 +31,55 @@ pub type PngFilterFlags = sk_pngencoder_filterflags_t;
 #[link(name = "stdc++")]
 #[link(name = "freetype")]
 extern "C" {}
+#[allow(unused)]
+macro_rules! pod_struct {
+    ($svis: vis $name: ident, $opaque: ident {
+        $($vis: vis $field: ident: $fty: ty ,)+
+    }) => {
+        #[derive(Debug, Copy, Clone)]
+        #[repr(transparent)]
+        $svis struct $name(pub(crate) $opaque);
 
+        impl AsRef<$opaque> for $name {
+            fn as_ref(&self) -> &$opaque {
+                &self.0
+            }
+        }
+        impl AsMut<$opaque> for $name {
+            fn as_mut(&mut self) -> &mut $opaque {
+                &mut self.0
+            }
+        }
+        impl Borrow<$opaque> for $name {
+            fn borrow(&self) -> &$opaque {
+                &self.0
+            }
+        }
+        impl BorrowMut<$opaque> for $name {
+            fn borrow_mut(&mut self) -> &mut $opaque {
+                &mut self.0
+            }
+        }
+        impl $name {
+            pub(crate) fn as_ptr(&self) -> *const $opaque {
+                &self.0 as _
+            }
+            pub(crate) fn as_ptr_mut(&mut self) -> * mut $opaque {
+                &mut self.0 as _
+            }
+            $(
+                $vis fn get_$field(&self) -> $fty {
+                    self.0.$field
+                }
+                $vis fn set_$field(&mut self, $field: $fty) {
+                    self.0.$field = $field;
+                }
+            )+
+        }
+    };
+}
+#[allow(unused)]
+pub(crate) use pod_struct;
 /// A convenience wrapper that implements some repetitive code for skia objects which are ref counted
 /// usage: `opaque_shared!(StructName, struct_name, sk_struct_name_ref, sk_struct_name_unref);`
 /// StructName is just the rust struct name (wrapper)
@@ -63,20 +118,33 @@ macro_rules! opaque_shared {
         }
         #[allow(unused)]
         impl $name {
+            pub(crate) fn as_ptr(&self) -> *const $opaque {
+                self.inner as _
+            }
+            pub(crate) fn as_ptr_mut(&mut self) -> * mut $opaque {
+                self.inner
+            }
             /// consumes struct and returns a ptr that has ownership.
-            /// # Unsafe
+            /// # Safety
             /// caller needs to call unref after being done with it.
-
             pub(crate) unsafe fn into_owned_ptr(self) -> *mut $opaque {
                 let inner = self.inner;
                 std::mem::forget(self);
                 inner
             }
-            /// takes a pointer and assumes ownership of it. returns None if nullptr.
-            /// # Unsafe
+            /// takes a pointer and assumes ownership of it. panics if null ptr. For a non-panic version. use [Self::try_from_owned_ptr]
+            /// # Safety
             /// the struct assumes ownership, so caller shouldn't use it after that.
             /// also make sure that you haven't accidentally called unref on it in the past.
-            pub(crate) unsafe fn from_owned_ptr(ptr: *mut $opaque) -> Option<Self> {
+            pub(crate) unsafe fn from_owned_ptr(ptr: *mut $opaque) -> Self {
+                assert!(!ptr.is_null());
+                Self { inner: ptr }
+            }
+            /// takes a pointer and assumes ownership of it. returns None if nullptr.
+            /// # Safety
+            /// the struct assumes ownership, so caller shouldn't use it after that.
+            /// also make sure that you haven't accidentally called unref on it in the past.
+            pub(crate) unsafe fn try_from_owned_ptr(ptr: *mut $opaque) -> Option<Self> {
                 if ptr.is_null() {
                     None
                 } else {
@@ -85,7 +153,7 @@ macro_rules! opaque_shared {
             }
             $(
             /// takes a ptr and increments ref count. Then assumes ownership of it. returns None if nullptr.
-            /// # Unsafe
+            /// # Safety
             /// The original pointer's ownership still resides with the caller, and they must make sure to call unref on it after being done with it.
             pub(crate) unsafe fn from_borrowed_ptr(ptr: *mut $opaque) -> Option<Self> {
                 if ptr.is_null() {
@@ -129,8 +197,14 @@ macro_rules! opaque_unique {
         }
         #[allow(unused)]
         impl $name {
+            pub(crate) fn as_ptr(&self) -> *const $opaque {
+                self.inner as _
+            }
+            pub(crate) fn as_ptr_mut(&mut self) -> *mut $opaque {
+                self.inner
+            }
             /// consumes struct and returns a ptr that has ownership.
-            /// # Unsafe
+            /// # Safety
             /// caller needs to call unref after being done with it.
 
             pub(crate) unsafe fn into_owned_ptr(self) -> *mut $opaque {
@@ -138,11 +212,19 @@ macro_rules! opaque_unique {
                 std::mem::forget(self);
                 inner
             }
-            /// takes a pointer and assumes ownership of it. returns None if nullptr.
-            /// # Unsafe
+            /// takes a pointer and assumes ownership of it. panics if null ptr. For a non-panic version. use [Self::try_from_owned_ptr]
+            /// # Safety
             /// the struct assumes ownership, so caller shouldn't use it after that.
             /// also make sure that you haven't accidentally called unref on it in the past.
-            pub(crate) unsafe fn from_owned_ptr(ptr: *mut $opaque) -> Option<Self> {
+            pub(crate) unsafe fn from_owned_ptr(ptr: *mut $opaque) -> Self {
+                assert!(!ptr.is_null());
+                Self { inner: ptr }
+            }
+            /// takes a pointer and assumes ownership of it. returns None if nullptr.
+            /// # Safety
+            /// the struct assumes ownership, so caller shouldn't use it after that.
+            /// also make sure that you haven't accidentally called unref on it in the past.
+            pub(crate) unsafe fn try_from_owned_ptr(ptr: *mut $opaque) -> Option<Self> {
                 if ptr.is_null() {
                     None
                 } else {

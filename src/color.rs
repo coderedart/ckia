@@ -90,7 +90,7 @@ impl Color {
         let mut color = (a as u32) << 24;
         color |= (r as u32) << 16;
         color |= (g as u32) << 8;
-        color |= (b as u32) << 0;
+        color |= b as u32;
         Self(color)
     }
 }
@@ -213,7 +213,6 @@ crate::opaque_shared!(
     sk_colorspace_t,
     sk_colorspace_unref,
     sk_colorspace_ref
-    
 );
 /// holds a non-null pointer to colorspace opaque struct
 
@@ -330,7 +329,10 @@ impl<'a> ICCProfile<'a> {
             phantom: PhantomData,
         }
     }
-    pub fn parse<'b>(self, buffer: &'b [u8]) -> Result<ICCProfile<'b>, Self> {
+    /// We take self by value because our lifetime (and by extension our type) depends on success vs failure result
+    /// If we succeed, then our lifetime is attached to the new `buffer`.
+    /// But if we fail, our lifetime should still remain the same as before this function (because failure case won't change anything within our struct)
+    pub fn parse(self, buffer: &[u8]) -> Result<ICCProfile, Self> {
         if unsafe {
             sk_colorspace_icc_profile_parse(buffer.as_ptr() as _, buffer.len(), self.inner)
         } {
