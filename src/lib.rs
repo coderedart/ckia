@@ -1,3 +1,5 @@
+use std::ffi::CStr;
+
 use ckia_sys as sys;
 use sys::*;
 
@@ -6,7 +8,9 @@ pub mod canvas;
 pub mod color;
 pub mod data;
 pub mod filter;
+pub mod font;
 pub mod geometry;
+pub mod gr_context;
 pub mod image;
 pub mod image_info;
 pub mod matrix;
@@ -19,10 +23,70 @@ pub mod rrect;
 pub mod shader;
 pub mod stream;
 pub mod string;
-
 pub use color::*;
 pub use geometry::*;
 pub type PngFilterFlags = sk_pngencoder_filterflags_t;
+
+pub(crate) trait SkiaPointer {
+    type Opaque;
+    fn as_ptr(&self) -> *const Self::Opaque;
+    fn as_ptr_mut(&mut self) -> *mut Self::Opaque;
+}
+
+pub(crate) unsafe trait VirtualRefCounted: SkiaPointer {
+    fn as_vref_ptr(&self) -> *const sk_refcnt_t;
+    fn as_vref_ptr_mut(&self) -> *mut sk_refcnt_t;
+    fn is_unique(&self) -> bool {
+        unsafe { sk_refcnt_unique(self.as_vref_ptr()) }
+    }
+    fn get_ref_count(&self) -> i32 {
+        unsafe { sk_refcnt_get_ref_count(self.as_vref_ptr()) }
+    }
+    fn safe_ref(&mut self) {
+        unsafe { sk_refcnt_safe_ref(self.as_vref_ptr_mut()) }
+    }
+    fn safe_unref(&mut self) {
+        unsafe { sk_refcnt_safe_unref(self.as_vref_ptr_mut()) }
+    }
+}
+pub(crate) unsafe trait NotVirtualRefCounted: SkiaPointer {
+    fn as_nvref_ptr(&self) -> *const sk_nvrefcnt_t;
+    fn as_nvref_ptr_mut(&self) -> *mut sk_nvrefcnt_t;
+    fn is_unique(&self) -> bool {
+        unsafe { sk_nvrefcnt_unique(self.as_nvref_ptr()) }
+    }
+    fn get_ref_count(&self) -> i32 {
+        unsafe { sk_nvrefcnt_get_ref_count(self.as_nvref_ptr()) }
+    }
+    fn safe_ref(&mut self) {
+        unsafe { sk_nvrefcnt_safe_ref(self.as_nvref_ptr_mut()) }
+    }
+    fn safe_unref(&mut self) {
+        unsafe { sk_nvrefcnt_safe_unref(self.as_nvref_ptr_mut()) }
+    }
+}
+pub fn colortype_get_default_8888() -> ColorType {
+    unsafe { sk_colortype_get_default_8888() }
+}
+/// Empty struct to wrap skia version related functions
+pub struct SkiaVersion;
+impl SkiaVersion {
+    pub fn get_milestone() -> i32 {
+        unsafe { sk_version_get_milestone() }
+    }
+    pub fn get_increment() -> i32 {
+        unsafe { sk_version_get_increment() }
+    }
+    pub fn get_string() -> &'static str {
+        unsafe {
+            let ptr = sk_version_get_string();
+            assert!(!ptr.is_null());
+            CStr::from_ptr(ptr as _)
+                .to_str()
+                .expect("failed to parse skia version string")
+        }
+    }
+}
 // temporary hack
 #[link(name = "dl")]
 #[link(name = "pthread")]
@@ -102,6 +166,7 @@ macro_rules! opaque_shared {
         pub struct $name {
             pub(crate) inner: *mut $opaque,
         }
+        impl SkiaPointer for 
         $(
         impl Clone for $name {
             fn clone(&self) -> Self {
@@ -118,12 +183,7 @@ macro_rules! opaque_shared {
         }
         #[allow(unused)]
         impl $name {
-            pub(crate) fn as_ptr(&self) -> *const $opaque {
-                self.inner as _
-            }
-            pub(crate) fn as_ptr_mut(&mut self) -> * mut $opaque {
-                self.inner
-            }
+            
             /// consumes struct and returns a ptr that has ownership.
             /// # Safety
             /// caller needs to call unref after being done with it.

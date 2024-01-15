@@ -7,5 +7,7 @@ repository = "https://github.com/coderedart/ckia.git"
 homepage = "https://github.com/coderedart/ckia.git"
 documentation = "https://docs.rs/ckia"
 
+[features]
+build_from_src = ["ckia_sys/build_from_src"]
 [dependencies]
 ckia_sys = { version = "121" }

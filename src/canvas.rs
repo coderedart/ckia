@@ -1,6 +1,8 @@
 use ckia_sys::*;
 
-use crate::{bitmap::BitMap, opaque_unique, BlendMode, Color, Color4f};
+use crate::{
+    bitmap::BitMap, opaque_unique, paint::Paint, BlendMode, Color, Color4f, Point, PointMode,
+};
 
 opaque_unique!(Canvas, sk_canvas_t, sk_canvas_destroy);
 
@@ -41,29 +43,26 @@ impl Canvas {
             sk_canvas_draw_color4f(self.inner, color.0, mode);
         }
     }
-
+    pub fn draw_points(&mut self, mode: PointMode, points: &[Point], paint: &Paint) {
+        unsafe {
+            sk_canvas_draw_points(
+                self.as_ptr_mut(),
+                mode,
+                points.len(),
+                points.as_ptr() as _,
+                paint.as_ptr(),
+            )
+        }
+    }
+    pub fn draw_point(&mut self, x: f32, y: f32, paint: &Paint) {
+        unsafe { sk_canvas_draw_point(self.as_ptr_mut(), x, y, paint.as_ptr()) }
+    }
+    pub fn draw_line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, paint: &mut Paint) {
+        unsafe { sk_canvas_draw_line(self.as_ptr_mut(), x0, y0, x1, y1, paint.as_ptr_mut()) }
+    }
+    // pub fn draw_simple_text(&mut self, text: &str, encoding:  )
     /*
-    pub fn sk_canvas_draw_points(
-        ccanvas: *mut sk_canvas_t,
-        pointMode: sk_point_mode_t,
-        count: usize,
-        points: *const sk_point_t,
-        cpaint: *const sk_paint_t,
-    );
-    pub fn sk_canvas_draw_point(
-        ccanvas: *mut sk_canvas_t,
-        x: f32,
-        y: f32,
-        cpaint: *const sk_paint_t,
-    );
-    pub fn sk_canvas_draw_line(
-        ccanvas: *mut sk_canvas_t,
-        x0: f32,
-        y0: f32,
-        x1: f32,
-        y1: f32,
-        cpaint: *mut sk_paint_t,
-    );
+
     pub fn sk_canvas_draw_simple_text(
         ccanvas: *mut sk_canvas_t,
         text: *const ::std::os::raw::c_void,
