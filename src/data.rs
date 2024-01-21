@@ -3,7 +3,8 @@ use std::ffi::CStr;
 use ckia_sys::*;
 
 use crate::stream::Stream;
-crate::opaque_shared!(SkiaData, sk_data_t, sk_data_unref, sk_data_ref);
+use crate::SkiaPointer;
+crate::skia_wrapper!(nvrefcnt, SkiaData, sk_data_t, sk_data_unref, sk_data_ref);
 impl Default for SkiaData {
     fn default() -> Self {
         unsafe { Self::from_owned_ptr(sk_data_new_empty()) }
@@ -39,5 +40,28 @@ impl SkiaData {
     ) -> *mut sk_data_t; */
     pub fn new_uninitialized(len: usize) -> Self {
         unsafe { Self::from_owned_ptr(sk_data_new_uninitialized(len)) }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::NotVirtualRefCounted;
+
+    use super::SkiaData;
+
+    #[test]
+    pub fn test_unique() {
+        let mut data = SkiaData::new_uninitialized(128);
+        assert!(
+            data.is_unique(),
+            "skia data is not unique after just being initialized"
+        );
+        data.safe_ref();
+        assert!(
+            !data.is_unique(),
+            "skia data is unique after we just incremented the ref count"
+        );
+        data.safe_unref();
+        assert!(data.is_unique(), "skia data is not unique after safe unref");
     }
 }

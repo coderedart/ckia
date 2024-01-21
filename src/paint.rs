@@ -1,20 +1,15 @@
 use ckia_sys::*;
 
 use crate::{
+    color::ColorSpace,
     filter::{ColorFilter, ImageFilter, MaskFilter},
-    matrix::Matrix,
     path::SkiaPath,
     path_effect::PathEffect,
     shader::Shader,
-    BlendMode, Color, Color4f, ColorSpace, Rect,
+    BlendMode, Color, Color4f, Matrix, PaintStyle, Rect, SkiaPointer, StrokeCap, StrokeJoin,
 };
 
-pub type PaintStyle = sk_paint_style_t;
-pub type StrokeCap = sk_stroke_cap_t;
-pub type StrokeJoin = sk_stroke_join_t;
-pub type BlurStyle = sk_blurstyle_t;
-
-crate::opaque_unique!(Paint, sk_paint_t, sk_paint_delete);
+crate::skia_wrapper!(unique, Paint, sk_paint_t, sk_paint_delete);
 
 impl Clone for Paint {
     fn clone(&self) -> Self {

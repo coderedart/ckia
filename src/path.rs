@@ -2,17 +2,12 @@ use std::{ffi::CStr, marker::PhantomData};
 
 use ckia_sys::*;
 
-use crate::{matrix::Matrix, rrect::RRect, string::SkiaString, Point, Rect, Vector};
+use crate::{
+    rrect::RRect, string::SkiaString, Matrix, PathAddMode, PathArcSize, PathDirection,
+    PathFillType, PathMeasureMatrixflags, PathOp, PathVerb, Point, Rect, SkiaPointer, Vector,
+};
 
-pub type Direction = sk_path_direction_t;
-pub type ArcSize = sk_path_arc_size_t;
-pub type FillType = sk_path_filltype_t;
-pub type AddMode = sk_path_add_mode_t;
-pub type Verb = sk_path_verb_t;
-pub type SegmentMask = sk_path_segment_mask_t;
-pub type Op = sk_pathop_t;
-pub type MatrixFlags = sk_pathmeasure_matrixflags_t;
-crate::opaque_unique!(SkiaPath, sk_path_t, sk_path_delete);
+crate::skia_wrapper!(unique, SkiaPath, sk_path_t, sk_path_delete);
 impl Clone for SkiaPath {
     fn clone(&self) -> Self {
         unsafe { Self::from_owned_ptr(sk_path_clone(self.as_ptr())) }
@@ -46,8 +41,8 @@ impl SkiaPath {
         rx: f32,
         ry: f32,
         x_axis_rotate: f32,
-        large_arc: ArcSize,
-        sweep: Direction,
+        large_arc: PathArcSize,
+        sweep: PathDirection,
         x: f32,
         y: f32,
     ) {
@@ -58,8 +53,8 @@ impl SkiaPath {
         rx: f32,
         ry: f32,
         x_axis_rotate: f32,
-        large_arc: ArcSize,
-        sweep: Direction,
+        large_arc: PathArcSize,
+        sweep: PathDirection,
         x: f32,
         y: f32,
     ) {
@@ -90,26 +85,26 @@ impl SkiaPath {
     pub fn close(&mut self) {
         unsafe { sk_path_close(self.inner) }
     }
-    pub fn add_rect(&mut self, rect: &Rect, dir: Direction) {
+    pub fn add_rect(&mut self, rect: &Rect, dir: PathDirection) {
         unsafe { sk_path_add_rect(self.inner, rect.as_ptr(), dir) }
     }
-    pub fn add_rrect(&mut self, rect: &RRect, dir: Direction) {
+    pub fn add_rrect(&mut self, rect: &RRect, dir: PathDirection) {
         unsafe {
             sk_path_add_rrect(self.inner, rect.inner, dir);
         }
     }
-    pub fn add_rrect_start(&mut self, rect: &RRect, dir: Direction, start: u32) {
+    pub fn add_rrect_start(&mut self, rect: &RRect, dir: PathDirection, start: u32) {
         unsafe {
             sk_path_add_rrect_start(self.inner, rect.inner, dir, start);
         }
     }
-    pub fn add_rounded_rect(&mut self, rect: &Rect, rx: f32, ry: f32, dir: Direction) {
+    pub fn add_rounded_rect(&mut self, rect: &Rect, rx: f32, ry: f32, dir: PathDirection) {
         unsafe { sk_path_add_rounded_rect(self.inner, rect.as_ptr(), rx, ry, dir) }
     }
-    pub fn add_oval(&mut self, rect: &Rect, dir: Direction) {
+    pub fn add_oval(&mut self, rect: &Rect, dir: PathDirection) {
         unsafe { sk_path_add_oval(self.inner, rect.as_ptr(), dir) }
     }
-    pub fn add_circle(&mut self, x: f32, y: f32, radius: f32, dir: Direction) {
+    pub fn add_circle(&mut self, x: f32, y: f32, radius: f32, dir: PathDirection) {
         unsafe { sk_path_add_circle(self.inner, x, y, radius, dir) }
     }
     pub fn get_bounds(&self) -> Rect {
@@ -137,16 +132,16 @@ impl SkiaPath {
     pub fn rcubic_to(&mut self, dx0: f32, dy0: f32, dx1: f32, dy1: f32, dx2: f32, dy2: f32) {
         unsafe { sk_path_rcubic_to(self.inner, dx0, dy0, dx1, dy1, dx2, dy2) }
     }
-    pub fn add_rect_start(&mut self, rect: &Rect, dir: Direction, start_index: u32) {
+    pub fn add_rect_start(&mut self, rect: &Rect, dir: PathDirection, start_index: u32) {
         unsafe { sk_path_add_rect_start(self.inner, rect.as_ptr(), dir, start_index) }
     }
     pub fn add_arc(&mut self, rect: &Rect, start_angle: f32, sweep_angle: f32) {
         unsafe { sk_path_add_arc(self.inner, rect.as_ptr(), start_angle, sweep_angle) }
     }
-    pub fn get_filltype(&mut self) -> FillType {
+    pub fn get_filltype(&mut self) -> PathFillType {
         unsafe { sk_path_get_filltype(self.inner) }
     }
-    pub fn set_filltype(&mut self, filltype: FillType) {
+    pub fn set_filltype(&mut self, filltype: PathFillType) {
         unsafe { sk_path_set_filltype(self.inner, filltype) }
     }
     pub fn transform(&mut self, matrix: &Matrix) {
@@ -157,17 +152,17 @@ impl SkiaPath {
     pub fn transform_to_dest(&self, matrix: &Matrix, dest: &mut Self) {
         unsafe { sk_path_transform_to_dest(self.inner, matrix.as_ptr(), dest.inner) }
     }
-    pub fn add_path_offset(&mut self, other: &mut Self, dx: f32, dy: f32, add_mode: AddMode) {
+    pub fn add_path_offset(&mut self, other: &mut Self, dx: f32, dy: f32, add_mode: PathAddMode) {
         unsafe {
             sk_path_add_path_offset(self.inner, other.inner, dx, dy, add_mode);
         }
     }
-    pub fn add_path_matrix(&mut self, other: &mut Self, mut matrix: Matrix, add_mode: AddMode) {
+    pub fn add_path_matrix(&mut self, other: &mut Self, mut matrix: Matrix, add_mode: PathAddMode) {
         unsafe {
             sk_path_add_path_matrix(self.inner, other.inner, matrix.as_ptr_mut(), add_mode);
         }
     }
-    pub fn add_path(&mut self, other: &mut Self, add_mode: AddMode) {
+    pub fn add_path(&mut self, other: &mut Self, add_mode: PathAddMode) {
         unsafe {
             sk_path_add_path(self.inner, other.inner, add_mode);
         }
@@ -258,19 +253,19 @@ impl SkiaPath {
         let mut line = [Point::ZERO; 2];
         unsafe { sk_path_is_line(self.inner, line.as_mut_ptr() as _).then_some(line) }
     }
-    /// if rect, returns rect + if path is closed + direction. otherwise None.
-    pub fn is_rect(&mut self) -> Option<(Rect, bool, Direction)> {
+    /// if rect, returns rect + if path is closed + PathDirection. otherwise None.
+    pub fn is_rect(&mut self) -> Option<(Rect, bool, PathDirection)> {
         let mut rect = Rect::ZERO;
         let mut closed = false;
-        let mut direction = Direction::CW_SK_PATH_DIRECTION;
+        let mut path_direction = PathDirection::CW_SK_PATH_DIRECTION;
         unsafe {
             sk_path_is_rect(
                 self.inner,
                 rect.as_ptr_mut(),
                 &mut closed as _,
-                &mut direction as _,
+                &mut path_direction as _,
             )
-            .then_some((rect, closed, direction))
+            .then_some((rect, closed, path_direction))
         }
     }
     pub fn is_convex(&self) -> bool {
@@ -297,7 +292,7 @@ impl SkiaPath {
     }
     /// returns true on success. if false, then result is untouched.
     #[must_use]
-    pub fn op(&self, other: &Self, op: Op, result: &mut SkiaPath) -> bool {
+    pub fn op(&self, other: &Self, op: PathOp, result: &mut SkiaPath) -> bool {
         unsafe { sk_pathop_op(self.inner, other.inner, op, result.inner) }
     }
     /// returns true on success. if false, then result is unmodified.
@@ -332,7 +327,7 @@ impl<'a> Drop for PathIterator<'a> {
 }
 
 impl<'a> PathIterator<'a> {
-    pub fn next(&mut self, points: &mut [Point; 4]) -> Verb {
+    pub fn next(&mut self, points: &mut [Point; 4]) -> PathVerb {
         unsafe { sk_path_iter_next(self.inner, points.as_mut_ptr() as _) }
     }
     pub fn conic_weight(&mut self) -> f32 {
@@ -364,24 +359,24 @@ impl<'a> Drop for RawPathIterator<'a> {
 }
 
 impl<'a> RawPathIterator<'a> {
-    pub fn next(&mut self, points: &mut [Point; 4]) -> Verb {
+    pub fn next(&mut self, points: &mut [Point; 4]) -> PathVerb {
         unsafe { sk_path_rawiter_next(self.inner, points.as_mut_ptr() as _) }
     }
     pub fn conic_weight(&mut self) -> f32 {
         unsafe { sk_path_rawiter_conic_weight(self.inner) }
     }
-    pub fn peek(&mut self) -> Verb {
+    pub fn peek(&mut self) -> PathVerb {
         unsafe { sk_path_rawiter_peek(self.inner) }
     }
 }
-crate::opaque_unique!(OpBuilder, sk_opbuilder_t, sk_opbuilder_destroy);
+crate::skia_wrapper!(unique, OpBuilder, sk_opbuilder_t, sk_opbuilder_destroy);
 impl Default for OpBuilder {
     fn default() -> Self {
         unsafe { Self::from_owned_ptr(sk_opbuilder_new()) }
     }
 }
 impl OpBuilder {
-    pub fn add(&mut self, path: &SkiaPath, op: Op) {
+    pub fn add(&mut self, path: &SkiaPath, op: PathOp) {
         unsafe { sk_opbuilder_add(self.inner, path.inner, op) }
     }
 
@@ -391,7 +386,12 @@ impl OpBuilder {
         unsafe { sk_opbuilder_resolve(self.inner, result.inner) }
     }
 }
-crate::opaque_unique!(PathMeasure, sk_pathmeasure_t, sk_pathmeasure_destroy);
+crate::skia_wrapper!(
+    unique,
+    PathMeasure,
+    sk_pathmeasure_t,
+    sk_pathmeasure_destroy
+);
 impl Default for PathMeasure {
     fn default() -> Self {
         unsafe { Self::from_owned_ptr(sk_pathmeasure_new()) }
@@ -427,7 +427,7 @@ impl PathMeasure {
             .then_some((position, tangent))
         }
     }
-    pub fn get_matrix(&mut self, distance: f32, flags: MatrixFlags) -> Option<Matrix> {
+    pub fn get_matrix(&mut self, distance: f32, flags: PathMeasureMatrixflags) -> Option<Matrix> {
         let mut matrix = Matrix::default();
 
         unsafe {

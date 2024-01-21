@@ -1,0 +1,37 @@
+[package]
+name = "ckia_sys"
+version = "121.1.0"
+edition = "2021"
+homepage = "https://github.com/coderedart/ckia_sys.git"
+repository = "https://github.com/coderedart/ckia_sys.git"
+documentation = "https://docs.rs/ckia_sys"
+links = "skia"
+build = "build.rs"
+description = "c bindings crate for skia"
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+# by default, we will try to download pre-built libs from github
+# but this feature will disable that
+disable_download_pre_built_skia_libs = []
+# by default, if we fail to download pre-build libs (or above feature is enabled< we build from src.
+# This feature will disable building from src
+disable_build_from_src = []
+
+disable_embedding_icudtl_dat = []
+# This tells skia to use dynamic linking. download shared lib files or build from src. 
+# If this is disabled, then we will use static linking which is what the majority want in the defualt case. 
+component_build = []
+# when you only need the fn signatures and leave the extern functions alone without downloading or building anything
+# this is really useful when you are building wasm plugins, and the host will provide the actual bindings when instantiating your wasm plugin
+dynamic_linking = [
+    "disable_download_pre_built_skia_libs",
+    "disable_build_from_src",
+]
+# by default, we will place build artifact downloads in user cache dir, to avoid redownloading after cargo clean
+# you can use this to disable that behavior
+disable_caching_downloads_in_user_cache = []
+
+
+[dependencies]

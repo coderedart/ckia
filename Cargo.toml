@@ -8,6 +8,13 @@ homepage = "https://github.com/coderedart/ckia.git"
 documentation = "https://docs.rs/ckia"
 
 [features]
-build_from_src = ["ckia_sys/build_from_src"]
+
 [dependencies]
-ckia_sys = { version = "121" }
+ckia_sys = { version = "121", path = "ckia_sys" }
+paste = { version = "*" }
+[dev-dependencies]
+glfw = { version = "*" }
+glow = { version = "*" }
+
+[workspace]
+members = ["ckia_sys"]

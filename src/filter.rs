@@ -1,10 +1,9 @@
 use ckia_sys::*;
 
-use crate::{opaque_shared, paint::BlurStyle, shader::Shader, BlendMode, Color};
+use crate::{color::Color, shader::Shader, skia_wrapper, BlendMode, BlurStyle, Highcontrastconfig};
 
-pub type HighContrastConfig = sk_highcontrastconfig_t;
-pub type HighContrastConfigInvertStyle = sk_highcontrastconfig_invertstyle_t;
-opaque_shared!(
+skia_wrapper!(
+    refcnt,
     MaskFilter,
     sk_maskfilter_t,
     sk_maskfilter_unref,
@@ -45,7 +44,8 @@ impl MaskFilter {
     }
 }
 
-opaque_shared!(ColorFilter, sk_colorfilter_t, sk_colorfilter_unref);
+skia_wrapper!(refcnt, ColorFilter, sk_colorfilter_t, sk_colorfilter_unref);
+
 impl ColorFilter {
     pub fn new_mode(color: Color, mode: BlendMode) -> Self {
         let inner = unsafe { sk_colorfilter_new_mode(color.0, mode) };
@@ -73,8 +73,8 @@ impl ColorFilter {
         assert!(!inner.is_null());
         Self { inner }
     }
-    pub fn new_high_contrast(config: &HighContrastConfig) -> Self {
-        let inner = unsafe { sk_colorfilter_new_high_contrast(config as _) };
+    pub fn new_high_contrast(config: &Highcontrastconfig) -> Self {
+        let inner = unsafe { sk_colorfilter_new_high_contrast(config.as_ptr()) };
         assert!(!inner.is_null());
         Self { inner }
     }
@@ -102,7 +102,7 @@ impl ColorFilter {
         Self { inner }
     }
 }
-opaque_shared!(ImageFilter, sk_imagefilter_t, sk_imagefilter_unref);
+skia_wrapper!(refcnt, ImageFilter, sk_imagefilter_t, sk_imagefilter_unref);
 impl ImageFilter {
     /*
     pub fn sk_imagefilter_new_alpha_threshold(

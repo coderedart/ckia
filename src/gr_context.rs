@@ -1,14 +1,12 @@
 use std::ffi::CStr;
 
+use crate::SkiaPointer;
 use ckia_sys::*;
 
-use crate::ColorType;
+use crate::*;
 
-pub type GrBackend = gr_backend_t;
-pub type GlTextureInfo = gr_gl_textureinfo_t;
-pub type GlFramebufferInfo = gr_gl_framebufferinfo_t;
-pub type GlContextOptions = gr_context_options_t;
-crate::opaque_unique!(
+crate::skia_wrapper!(
+    unique,
     GrRecordingContext,
     gr_recording_context_t,
     gr_recording_context_unref
@@ -22,7 +20,7 @@ impl GrRecordingContext {
             )
         }
     }
-    pub fn get_backend(&mut self) -> GrBackend {
+    pub fn get_backend(&mut self) -> Backend {
         unsafe { gr_recording_context_get_backend(self.as_ptr_mut()) }
     }
     pub fn is_abandoned(&mut self) -> bool {
@@ -35,21 +33,27 @@ impl GrRecordingContext {
         unsafe { gr_recording_context_max_render_target_size(self.as_ptr_mut()) }
     }
 }
-crate::opaque_unique!(
+crate::skia_wrapper!(
+    unique,
     DirectContext,
     gr_direct_context_t,
     gr_direct_context_release_resources_and_abandon_context
 );
-
+/// Direct Context inherits Recording context
+impl AsMut<GrRecordingContext> for DirectContext {
+    fn as_mut(&mut self) -> &mut GrRecordingContext {
+        unsafe { std::mem::transmute(self) }
+    }
+}
 impl DirectContext {
     pub fn make_gl(interface: &GlInterface) -> Self {
         unsafe { Self::from_owned_ptr(gr_direct_context_make_gl(interface.as_ptr())) }
     }
-    pub fn make_gl_with_options(interface: &GlInterface, options: &GlContextOptions) -> Self {
+    pub fn make_gl_with_options(interface: &GlInterface, options: &ContextOptions) -> Self {
         unsafe {
             Self::from_owned_ptr(gr_direct_context_make_gl_with_options(
                 interface.as_ptr(),
-                options as _,
+                options.as_ptr(),
             ))
         }
     }
@@ -139,7 +143,7 @@ impl DirectContext {
         }
     }
 }
-crate::opaque_shared!(GlInterface, gr_glinterface_t, gr_glinterface_unref);
+crate::skia_wrapper!(shared, GlInterface, gr_glinterface_t, gr_glinterface_unref);
 impl GlInterface {
     pub fn create_native_interface() -> Self {
         unsafe {
@@ -200,7 +204,8 @@ pub fn gr_vk_extensions_has_extension(
     minVersion: u32,
 ) -> bool;
 */
-crate::opaque_unique!(
+crate::skia_wrapper!(
+    unique,
     BackendTexture,
     gr_backendtexture_t,
     gr_backendtexture_delete
@@ -209,7 +214,10 @@ impl BackendTexture {
     pub fn new_gl(width: i32, height: i32, mipmapped: bool, info: &GlTextureInfo) -> Self {
         unsafe {
             Self::from_owned_ptr(gr_backendtexture_new_gl(
-                width, height, mipmapped, info as _,
+                width,
+                height,
+                mipmapped,
+                info.as_ptr(),
             ))
         }
     }
@@ -240,23 +248,19 @@ impl BackendTexture {
     pub fn has_mipmaps(&self) -> bool {
         unsafe { gr_backendtexture_has_mipmaps(self.as_ptr()) }
     }
-    pub fn get_backend(&self) -> GrBackend {
+    pub fn get_backend(&self) -> Backend {
         unsafe { gr_backendtexture_get_backend(self.as_ptr()) }
     }
     pub fn get_gl_texture_info(&self) -> Option<GlTextureInfo> {
-        let mut info = GlTextureInfo {
-            fTarget: Default::default(),
-            fID: Default::default(),
-            fFormat: Default::default(),
-            fProtected: Default::default(),
-        };
         unsafe {
-            gr_backendtexture_get_gl_textureinfo(self.as_ptr(), &mut info as _).then_some(info)
+            let mut info = GlTextureInfo::new(0, 0, 0, false);
+            gr_backendtexture_get_gl_textureinfo(self.as_ptr(), info.as_ptr_mut()).then_some(info)
         }
     }
 }
 
-crate::opaque_unique!(
+crate::skia_wrapper!(
+    unique,
     BackendRenderTarget,
     gr_backendrendertarget_t,
     gr_backendrendertarget_delete
@@ -271,7 +275,11 @@ impl BackendRenderTarget {
     ) -> Self {
         unsafe {
             Self::from_owned_ptr(gr_backendrendertarget_new_gl(
-                width, height, samples, stencils, info as _,
+                width,
+                height,
+                samples,
+                stencils,
+                info.as_ptr(),
             ))
         }
     }
@@ -304,17 +312,14 @@ impl BackendRenderTarget {
     pub fn get_stencils(&self) -> i32 {
         unsafe { gr_backendrendertarget_get_stencils(self.as_ptr()) }
     }
-    pub fn get_backend(&self) -> GrBackend {
+    pub fn get_backend(&self) -> Backend {
         unsafe { gr_backendrendertarget_get_backend(self.as_ptr()) }
     }
     pub fn get_gl_framebuffer_info(&self) -> Option<GlFramebufferInfo> {
-        let mut info = GlFramebufferInfo {
-            fFormat: Default::default(),
-            fProtected: Default::default(),
-            fFBOID: Default::default(),
-        };
         unsafe {
-            gr_backendrendertarget_get_gl_framebufferinfo(self.as_ptr(), &mut info as _)
+            let mut info = GlFramebufferInfo::new(0, 0, false);
+
+            gr_backendrendertarget_get_gl_framebufferinfo(self.as_ptr(), info.as_ptr_mut())
                 .then_some(info)
         }
     }

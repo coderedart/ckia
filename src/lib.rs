@@ -9,10 +9,8 @@ pub mod color;
 pub mod data;
 pub mod filter;
 pub mod font;
-pub mod geometry;
 pub mod gr_context;
 pub mod image;
-pub mod image_info;
 pub mod matrix;
 pub mod paint;
 pub mod path;
@@ -23,25 +21,53 @@ pub mod rrect;
 pub mod shader;
 pub mod stream;
 pub mod string;
-pub use color::*;
-pub use geometry::*;
-pub type PngFilterFlags = sk_pngencoder_filterflags_t;
-
-pub(crate) trait SkiaPointer {
+pub mod surface;
+pub mod text_blob;
+pub mod typeface;
+mod types;
+pub use color::{Color, PMColor};
+pub use types::*;
+pub(crate) trait SkiaPointer: Sized {
     type Opaque;
     fn as_ptr(&self) -> *const Self::Opaque;
     fn as_ptr_mut(&mut self) -> *mut Self::Opaque;
+    /// consumes struct and returns a ptr that has ownership.
+    /// # Safety
+    /// caller needs to call unref after being done with it
+    unsafe fn into_owned_ptr(mut self) -> *mut Self::Opaque {
+        let inner = self.as_ptr_mut();
+        std::mem::forget(self);
+        inner
+    }
+    /// takes a pointer and assumes ownership of it. panics if null ptr. For a non-panic version. use [Self::try_from_owned_ptr]
+    /// # Safety
+    /// the struct assumes ownership, so caller shouldn't use it after that.
+    /// also make sure that you haven't accidentally called unref on it in the past.
+    unsafe fn from_owned_ptr(ptr: *mut Self::Opaque) -> Self;
+    /// takes a pointer and assumes ownership of it. returns None if nullptr.
+    /// # Safety
+    /// the struct assumes ownership, so caller shouldn't use it after that.
+    /// also make sure that you haven't accidentally called unref on it in the past.
+    unsafe fn try_from_owned_ptr(ptr: *mut Self::Opaque) -> Option<Self> {
+        if ptr.is_null() {
+            None
+        } else {
+            Some(Self::from_owned_ptr(ptr))
+        }
+    }
 }
 
 pub(crate) unsafe trait VirtualRefCounted: SkiaPointer {
-    fn as_vref_ptr(&self) -> *const sk_refcnt_t;
-    fn as_vref_ptr_mut(&self) -> *mut sk_refcnt_t;
+    fn as_vref_ptr(&self) -> *const sk_refcnt_t {
+        self.as_ptr() as _
+    }
+    fn as_vref_ptr_mut(&mut self) -> *mut sk_refcnt_t {
+        self.as_ptr_mut() as _
+    }
     fn is_unique(&self) -> bool {
         unsafe { sk_refcnt_unique(self.as_vref_ptr()) }
     }
-    fn get_ref_count(&self) -> i32 {
-        unsafe { sk_refcnt_get_ref_count(self.as_vref_ptr()) }
-    }
+
     fn safe_ref(&mut self) {
         unsafe { sk_refcnt_safe_ref(self.as_vref_ptr_mut()) }
     }
@@ -50,13 +76,14 @@ pub(crate) unsafe trait VirtualRefCounted: SkiaPointer {
     }
 }
 pub(crate) unsafe trait NotVirtualRefCounted: SkiaPointer {
-    fn as_nvref_ptr(&self) -> *const sk_nvrefcnt_t;
-    fn as_nvref_ptr_mut(&self) -> *mut sk_nvrefcnt_t;
+    fn as_nvref_ptr(&self) -> *const sk_nvrefcnt_t {
+        self.as_ptr() as _
+    }
+    fn as_nvref_ptr_mut(&mut self) -> *mut sk_nvrefcnt_t {
+        self.as_ptr_mut() as _
+    }
     fn is_unique(&self) -> bool {
         unsafe { sk_nvrefcnt_unique(self.as_nvref_ptr()) }
-    }
-    fn get_ref_count(&self) -> i32 {
-        unsafe { sk_nvrefcnt_get_ref_count(self.as_nvref_ptr()) }
     }
     fn safe_ref(&mut self) {
         unsafe { sk_nvrefcnt_safe_ref(self.as_nvref_ptr_mut()) }
@@ -65,9 +92,7 @@ pub(crate) unsafe trait NotVirtualRefCounted: SkiaPointer {
         unsafe { sk_nvrefcnt_safe_unref(self.as_nvref_ptr_mut()) }
     }
 }
-pub fn colortype_get_default_8888() -> ColorType {
-    unsafe { sk_colortype_get_default_8888() }
-}
+
 /// Empty struct to wrap skia version related functions
 pub struct SkiaVersion;
 impl SkiaVersion {
@@ -87,15 +112,7 @@ impl SkiaVersion {
         }
     }
 }
-// temporary hack
-#[link(name = "dl")]
-#[link(name = "pthread")]
-#[link(name = "fontconfig")]
-#[link(name = "GL")]
-#[link(name = "stdc++")]
-#[link(name = "freetype")]
-extern "C" {}
-#[allow(unused)]
+
 macro_rules! pod_struct {
     ($svis: vis $name: ident, $opaque: ident {
         $($vis: vis $field: ident: $fty: ty ,)+
@@ -114,16 +131,17 @@ macro_rules! pod_struct {
                 &mut self.0
             }
         }
-        impl Borrow<$opaque> for $name {
+        impl std::borrow::Borrow<$opaque> for $name {
             fn borrow(&self) -> &$opaque {
                 &self.0
             }
         }
-        impl BorrowMut<$opaque> for $name {
+        impl std::borrow::BorrowMut<$opaque> for $name {
             fn borrow_mut(&mut self) -> &mut $opaque {
                 &mut self.0
             }
         }
+        #[allow(unused)]
         impl $name {
             pub(crate) fn as_ptr(&self) -> *const $opaque {
                 &self.0 as _
@@ -132,12 +150,14 @@ macro_rules! pod_struct {
                 &mut self.0 as _
             }
             $(
-                $vis fn get_$field(&self) -> $fty {
-                    self.0.$field
-                }
-                $vis fn set_$field(&mut self, $field: $fty) {
-                    self.0.$field = $field;
-                }
+                paste::paste!(
+                    $vis fn [<get_ $field>](&self) -> $fty {
+                        self.0.$field
+                    }
+                    $vis fn [<set_ $field>](&mut self, $field: $fty) {
+                        self.0.$field = $field;
+                    }
+                );
             )+
         }
     };
@@ -159,58 +179,31 @@ pub(crate) use pod_struct;
 /// 3. `from_borrowed_ptr`: takes a ptr, calls ref and then creates a struct with it. caller still has the ownership of the original pointer
 ///
 /// Both the above fns will only return an owned struct, if the ptr is not null. if its null, then they return None.
-macro_rules! opaque_shared {
-    ($name: ident, $opaque: ident,$unref: ident $(, $ref: ident)? ) => {
-        #[derive(Debug)]
-        #[repr(transparent)]
-        pub struct $name {
-            pub(crate) inner: *mut $opaque,
+macro_rules! skia_wrapper {
+    (refcnt, $name: ident, $opaque: ident,$unref: ident $(, $ref: ident)? ) => {
+        crate::skia_wrapper!(shared, $name, $opaque, $unref $(, $ref)?);
+        unsafe impl crate::VirtualRefCounted for $name {
+
         }
-        impl SkiaPointer for 
+    };
+    (nvrefcnt, $name: ident, $opaque: ident,$unref: ident $(, $ref: ident)? ) => {
+        crate::skia_wrapper!(shared, $name, $opaque, $unref $(, $ref)?);
+        unsafe impl crate::NotVirtualRefCounted for $name {
+
+        }
+    };
+    (shared, $name: ident, $opaque: ident,$unref: ident $(, $ref: ident)? ) => {
+        crate::skia_wrapper!(unique, $name, $opaque, $unref);
         $(
         impl Clone for $name {
             fn clone(&self) -> Self {
                 unsafe { $ref(self.inner) };
                 Self { inner: self.inner }
             }
-        })?
-        impl Drop for $name {
-            fn drop(&mut self) {
-                unsafe {
-                    $unref(self.inner);
-                }
-            }
         }
+        )?
         #[allow(unused)]
         impl $name {
-            
-            /// consumes struct and returns a ptr that has ownership.
-            /// # Safety
-            /// caller needs to call unref after being done with it.
-            pub(crate) unsafe fn into_owned_ptr(self) -> *mut $opaque {
-                let inner = self.inner;
-                std::mem::forget(self);
-                inner
-            }
-            /// takes a pointer and assumes ownership of it. panics if null ptr. For a non-panic version. use [Self::try_from_owned_ptr]
-            /// # Safety
-            /// the struct assumes ownership, so caller shouldn't use it after that.
-            /// also make sure that you haven't accidentally called unref on it in the past.
-            pub(crate) unsafe fn from_owned_ptr(ptr: *mut $opaque) -> Self {
-                assert!(!ptr.is_null());
-                Self { inner: ptr }
-            }
-            /// takes a pointer and assumes ownership of it. returns None if nullptr.
-            /// # Safety
-            /// the struct assumes ownership, so caller shouldn't use it after that.
-            /// also make sure that you haven't accidentally called unref on it in the past.
-            pub(crate) unsafe fn try_from_owned_ptr(ptr: *mut $opaque) -> Option<Self> {
-                if ptr.is_null() {
-                    None
-                } else {
-                    Some(Self { inner: ptr })
-                }
-            }
             $(
             /// takes a ptr and increments ref count. Then assumes ownership of it. returns None if nullptr.
             /// # Safety
@@ -225,6 +218,34 @@ macro_rules! opaque_shared {
             }
             )*
         }
+    };
+    (unique, $name: ident, $opaque: ident, $del: ident) => {
+        #[derive(Debug)]
+        #[repr(transparent)]
+        pub struct $name {
+            pub(crate) inner: *mut $opaque,
+        }
+        impl crate::SkiaPointer for $name {
+            type Opaque = $opaque;
+            fn as_ptr(&self) -> *const Self::Opaque {
+                self.inner as _
+            }
+            fn as_ptr_mut(&mut self) -> *mut Self::Opaque {
+                self.inner
+            }
+            unsafe fn from_owned_ptr(ptr: * mut Self::Opaque) -> Self {
+                assert!(!ptr.is_null());
+                Self { inner: ptr }
+            }
+        }
+        impl Drop for $name {
+            fn drop(&mut self) {
+                unsafe {
+                    $del(self.inner);
+                }
+            }
+        }
+
     };
 }
 /// A convenience wrapper that implements some repetitive code for skia objects which are uniquely owned (eg: allocated on heap using new and delete)
@@ -241,59 +262,4 @@ macro_rules! opaque_shared {
 /// 3. `from_borrowed_ptr`: takes a ptr, calls ref and then creates a struct with it. caller still has the ownership of the original pointer
 ///
 /// Both the above fns will only return an owned struct, if the ptr is not null. if its null, then they return None.
-macro_rules! opaque_unique {
-    ($name: ident, $opaque: ident, $del: ident) => {
-        #[derive(Debug)]
-        #[repr(transparent)]
-        pub struct $name {
-            pub(crate) inner: *mut $opaque,
-        }
-        impl Drop for $name {
-            fn drop(&mut self) {
-                unsafe {
-                    $del(self.inner);
-                }
-            }
-        }
-        #[allow(unused)]
-        impl $name {
-            pub(crate) fn as_ptr(&self) -> *const $opaque {
-                self.inner as _
-            }
-            pub(crate) fn as_ptr_mut(&mut self) -> *mut $opaque {
-                self.inner
-            }
-            /// consumes struct and returns a ptr that has ownership.
-            /// # Safety
-            /// caller needs to call unref after being done with it.
-
-            pub(crate) unsafe fn into_owned_ptr(self) -> *mut $opaque {
-                let inner = self.inner;
-                std::mem::forget(self);
-                inner
-            }
-            /// takes a pointer and assumes ownership of it. panics if null ptr. For a non-panic version. use [Self::try_from_owned_ptr]
-            /// # Safety
-            /// the struct assumes ownership, so caller shouldn't use it after that.
-            /// also make sure that you haven't accidentally called unref on it in the past.
-            pub(crate) unsafe fn from_owned_ptr(ptr: *mut $opaque) -> Self {
-                assert!(!ptr.is_null());
-                Self { inner: ptr }
-            }
-            /// takes a pointer and assumes ownership of it. returns None if nullptr.
-            /// # Safety
-            /// the struct assumes ownership, so caller shouldn't use it after that.
-            /// also make sure that you haven't accidentally called unref on it in the past.
-            pub(crate) unsafe fn try_from_owned_ptr(ptr: *mut $opaque) -> Option<Self> {
-                if ptr.is_null() {
-                    None
-                } else {
-                    Some(Self { inner: ptr })
-                }
-            }
-        }
-    };
-}
-pub(crate) use opaque_shared;
-
-pub(crate) use opaque_unique;
+pub(crate) use skia_wrapper;

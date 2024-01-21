@@ -2,7 +2,7 @@ use std::{marker::PhantomData, mem::transmute};
 
 use ckia_sys::*;
 
-use crate::{image_info::ImageInfo, stream::WStream, PngFilterFlags};
+use crate::{stream::WStream, ImageInfo, PngEncoderFilterFlags};
 
 #[repr(transparent)]
 pub struct PixMap<'a, T = ()> {
@@ -30,8 +30,9 @@ impl<'a, T> PixMap<'a, T> {
         buffer: &'a mut [u8],
         row_bytes: usize,
     ) -> PixMap<'a, &'a mut [u8]> {
-        let inner =
-            unsafe { sk_pixmap_new_with_params(&info.0 as _, buffer.as_mut_ptr() as _, row_bytes) };
+        let inner = unsafe {
+            sk_pixmap_new_with_params(info.as_ptr(), buffer.as_mut_ptr() as _, row_bytes)
+        };
         assert!(!inner.is_null());
         PixMap {
             inner,
@@ -53,7 +54,7 @@ impl<'a, T> PixMap<'a, T> {
         unsafe {
             sk_pixmap_reset_with_params(
                 self.inner,
-                &info.0 as _,
+                info.as_ptr(),
                 buffer.as_mut_ptr() as _,
                 row_bytes,
             );
@@ -66,12 +67,12 @@ impl<'a, T> PixMap<'a, T> {
     pub fn encode_png(
         &self,
         stream: &mut impl WStream,
-        png_filter_flags: Option<PngFilterFlags>,
+        png_filter_flags: Option<PngEncoderFilterFlags>,
         z_lib_level: Option<i32>,
     ) -> bool {
         let options = sk_pngencoder_options_t {
             fFilterFlags: png_filter_flags
-                .unwrap_or(PngFilterFlags::ALL_SK_PNGENCODER_FILTER_FLAGS),
+                .unwrap_or(PngEncoderFilterFlags::ALL_SK_PNGENCODER_FILTER_FLAGS),
             fZLibLevel: z_lib_level.unwrap_or(6),
             fComments: std::ptr::null_mut(),
             fICCProfile: std::ptr::null(),

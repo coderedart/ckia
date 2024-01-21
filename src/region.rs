@@ -2,9 +2,9 @@ use std::marker::PhantomData;
 
 use ckia_sys::*;
 
-use crate::{path::SkiaPath, IRect};
-pub type RegionOp = sk_region_op_t;
-crate::opaque_unique!(Region, sk_region_t, sk_region_delete);
+use crate::{path::SkiaPath, IRect, RegionOp, SkiaPointer};
+
+crate::skia_wrapper!(unique, Region, sk_region_t, sk_region_delete);
 impl Default for Region {
     fn default() -> Self {
         unsafe { Self::from_owned_ptr(sk_region_new()) }
@@ -88,14 +88,16 @@ impl Region {
     pub fn op(&mut self, region: &Region, op: RegionOp) -> bool {
         unsafe { sk_region_op(self.as_ptr_mut(), region.as_ptr(), op) }
     }
-
-    pub fn iter(&self) -> RegionIterator<'_> {
+    /// Returns sequence of [IRect], sorted along y-axis, then x-axis, that make
+    /// up [Region].
+    pub fn iter_regions(&self) -> RegionIterator<'_> {
         unsafe {
             let inner = sk_region_iterator_new(self.as_ptr());
             assert!(!inner.is_null());
             RegionIterator {
                 inner,
                 phantom: PhantomData,
+                already_done: false,
             }
         }
     }
@@ -103,9 +105,11 @@ impl Region {
         unsafe {
             let inner = sk_region_cliperator_new(self.as_ptr(), clip.as_ptr());
             assert!(!inner.is_null());
+
             RegionCliperator {
                 inner,
                 phantom: PhantomData,
+                already_done: false,
             }
         }
     }
@@ -120,9 +124,11 @@ impl Region {
         }
     }
 }
-
+/// Returns sequence of [IRect], sorted along y-axis, then x-axis, that make
+/// up [Region].
 pub struct RegionIterator<'a> {
     inner: *mut sk_region_iterator_t,
+    already_done: bool,
     phantom: PhantomData<&'a Region>,
 }
 impl<'a> Drop for RegionIterator<'a> {
@@ -131,24 +137,39 @@ impl<'a> Drop for RegionIterator<'a> {
     }
 }
 impl<'a> RegionIterator<'a> {
+    /// sets the iterator to point to the first [IRect] again.
     pub fn rewind(&mut self) -> bool {
         unsafe { sk_region_iterator_rewind(self.inner) }
     }
-    pub fn done(&self) -> bool {
+    fn is_done(&self) -> bool {
         unsafe { sk_region_iterator_done(self.inner) }
     }
-    pub fn next(&mut self) {
+    fn advance(&mut self) {
         unsafe { sk_region_iterator_next(self.inner) }
     }
-    pub fn rect(&self) -> IRect {
+    fn get_rect(&self) -> IRect {
         let mut rect = IRect::default();
         unsafe { sk_region_iterator_rect(self.inner, rect.as_ptr_mut()) };
         rect
     }
 }
+impl<'a> Iterator for RegionIterator<'a> {
+    type Item = IRect;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.already_done {
+            return None;
+        }
+        self.already_done = self.is_done();
+        let rect = self.get_rect();
+        self.advance();
+        Some(rect)
+    }
+}
 
 pub struct RegionCliperator<'a> {
     inner: *mut sk_region_cliperator_t,
+    already_done: bool,
     phantom: PhantomData<&'a Region>,
 }
 impl<'a> Drop for RegionCliperator<'a> {
@@ -157,16 +178,29 @@ impl<'a> Drop for RegionCliperator<'a> {
     }
 }
 impl<'a> RegionCliperator<'a> {
-    pub fn done(&self) -> bool {
+    pub fn cliperator_done(&mut self) -> bool {
         unsafe { sk_region_cliperator_done(self.inner) }
     }
-    pub fn next(&mut self) {
+    pub fn cliperator_next(&mut self) {
         unsafe { sk_region_cliperator_next(self.inner) }
     }
-    pub fn rect(&self) -> IRect {
+    pub fn cliperator_rect(&self) -> IRect {
         let mut rect = IRect::default();
         unsafe { sk_region_cliperator_rect(self.inner, rect.as_ptr_mut()) };
         rect
+    }
+}
+impl<'a> Iterator for RegionCliperator<'a> {
+    type Item = IRect;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.already_done {
+            return None;
+        }
+        self.already_done = self.cliperator_done();
+        let rect = self.cliperator_rect();
+        self.cliperator_next();
+        Some(rect)
     }
 }
 pub struct RegionSpanerator<'a> {
@@ -178,9 +212,10 @@ impl<'a> Drop for RegionSpanerator<'a> {
         unsafe { sk_region_spanerator_delete(self.inner) }
     }
 }
-impl<'a> RegionSpanerator<'a> {
+impl<'a> Iterator for RegionSpanerator<'a> {
+    type Item = (i32, i32);
     /// returns (left, right) representing span start and end if interval is found
-    pub fn next(&mut self) -> Option<(i32, i32)> {
+    fn next(&mut self) -> Option<Self::Item> {
         let mut left = 0;
         let mut right = 0;
         unsafe {
@@ -189,24 +224,3 @@ impl<'a> RegionSpanerator<'a> {
         }
     }
 }
-/*
-pub fn sk_region_cliperator_new(
-    region: *const sk_region_t,
-    clip: *const sk_irect_t,
-) -> *mut sk_region_cliperator_t;
-pub fn sk_region_cliperator_delete(iter: *mut sk_region_cliperator_t);
-pub fn sk_region_cliperator_done(iter: *mut sk_region_cliperator_t) -> bool;
-pub fn sk_region_cliperator_next(iter: *mut sk_region_cliperator_t);
-pub fn sk_region_cliperator_rect(iter: *const sk_region_cliperator_t, rect: *mut sk_irect_t);
-pub fn sk_region_spanerator_new(
-    region: *const sk_region_t,
-    y: ::std::os::raw::c_int,
-    left: ::std::os::raw::c_int,
-    right: ::std::os::raw::c_int,
-) -> *mut sk_region_spanerator_t;
-pub fn sk_region_spanerator_delete(iter: *mut sk_region_spanerator_t);
-pub fn sk_region_spanerator_next(
-    iter: *mut sk_region_spanerator_t,
-    left: *mut ::std::os::raw::c_int,
-    right: *mut ::std::os::raw::c_int,
-) -> bool; */

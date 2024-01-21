@@ -2,9 +2,9 @@ use std::mem::transmute;
 
 use ckia_sys::*;
 
-use crate::{image_info::ImageInfo, opaque_unique, pixmap::PixMap, Color, IRect};
+use crate::{color::Color, pixmap::PixMap, skia_wrapper, IRect, ImageInfo, SkiaPointer};
 
-opaque_unique!(BitMap, sk_bitmap_t, sk_bitmap_destructor);
+skia_wrapper!(unique, BitMap, sk_bitmap_t, sk_bitmap_destructor);
 
 impl Default for BitMap {
     fn default() -> Self {
@@ -15,7 +15,7 @@ impl BitMap {
     pub fn get_info(&mut self) -> ImageInfo {
         let mut info = ImageInfo::default();
         unsafe {
-            sk_bitmap_get_info(self.inner, &mut info.0 as _);
+            sk_bitmap_get_info(self.inner, info.as_ptr_mut());
         }
         info
     }
@@ -91,7 +91,7 @@ impl BitMap {
                 || row_bytes == 0,
             "invalid row bytes value"
         );
-        unsafe { sk_bitmap_try_alloc_pixels(self.inner, &requested_info.0 as _, row_bytes) }
+        unsafe { sk_bitmap_try_alloc_pixels(self.inner, requested_info.as_ptr(), row_bytes) }
     }
     pub fn swap(&mut self, other: &mut Self) {
         unsafe {

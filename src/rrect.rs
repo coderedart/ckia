@@ -1,11 +1,8 @@
 use ckia_sys::*;
 
-use crate::{matrix::Matrix, Rect, Vector};
+use crate::{Matrix, RRectCorner, RRectType, Rect, SkiaPointer, Vector};
 
-pub type RRectType = sk_rrect_type_t;
-pub type RRectCorner = sk_rrect_corner_t;
-
-crate::opaque_unique!(RRect, sk_rrect_t, sk_rrect_delete);
+crate::skia_wrapper!(unique, RRect, sk_rrect_t, sk_rrect_delete);
 impl Clone for RRect {
     fn clone(&self) -> Self {
         unsafe { Self::from_owned_ptr(sk_rrect_new_copy(self.inner)) }

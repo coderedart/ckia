@@ -1,8 +1,8 @@
 use ckia_sys::*;
 
-use crate::{filter::ColorFilter, opaque_shared, BlendMode, Color, Color4f, ColorSpace};
+use crate::{color::ColorSpace, filter::ColorFilter, skia_wrapper, BlendMode, Color, Color4f};
 
-opaque_shared!(Shader, sk_shader_t, sk_shader_unref, sk_shader_ref);
+skia_wrapper!(refcnt, Shader, sk_shader_t, sk_shader_unref, sk_shader_ref);
 
 impl Shader {
     /*

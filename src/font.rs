@@ -1,6 +1,7 @@
+use crate::{typeface::Typeface, SkiaPointer};
 use ckia_sys::*;
 
-crate::opaque_unique!(Font, sk_font_t, sk_font_delete);
+crate::skia_wrapper!(unique, Font, sk_font_t, sk_font_delete);
 
 impl Default for Font {
     fn default() -> Self {
@@ -8,14 +9,23 @@ impl Default for Font {
     }
 }
 impl Font {
-    /*
-    pub fn sk_font_new_with_values(
-        typeface: *mut sk_typeface_t,
+    pub fn new_with_values(
+        tf: &mut Typeface,
         size: f32,
-        scaleX: f32,
-        skewX: f32,
-    ) -> *mut sk_font_t;
-    pub fn sk_font_delete(font: *mut sk_font_t);
+        scale_x: f32,
+        skew_x: f32,
+    ) -> Option<Self> {
+        unsafe {
+            Self::try_from_owned_ptr(sk_font_new_with_values(
+                tf.as_ptr_mut(),
+                size,
+                scale_x,
+                skew_x,
+            ))
+        }
+    }
+    /*
+
     pub fn sk_font_is_force_auto_hinting(font: *const sk_font_t) -> bool;
     pub fn sk_font_set_force_auto_hinting(font: *mut sk_font_t, value: bool);
     pub fn sk_font_is_embedded_bitmaps(font: *const sk_font_t) -> bool;

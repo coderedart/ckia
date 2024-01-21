@@ -1,8 +1,9 @@
+use crate::SkiaPointer;
 use std::ffi::CStr;
 
 use ckia_sys::*;
 
-crate::opaque_unique!(SkiaString, sk_string_t, sk_string_destructor);
+crate::skia_wrapper!(unique, SkiaString, sk_string_t, sk_string_destructor);
 
 impl SkiaString {
     pub fn new_empty() -> Self {

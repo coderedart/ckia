@@ -2,32 +2,8 @@ use std::borrow::{Borrow, BorrowMut};
 
 use ckia_sys::*;
 
-use crate::{Point, Rect};
+use crate::{Matrix, Matrix44, Point, Rect};
 
-#[derive(Debug, Copy, Clone)]
-#[repr(transparent)]
-pub struct Matrix(pub(crate) sk_matrix_t);
-
-impl AsRef<sk_matrix_t> for Matrix {
-    fn as_ref(&self) -> &sk_matrix_t {
-        &self.0
-    }
-}
-impl AsMut<sk_matrix_t> for Matrix {
-    fn as_mut(&mut self) -> &mut sk_matrix_t {
-        &mut self.0
-    }
-}
-impl Borrow<sk_matrix_t> for Matrix {
-    fn borrow(&self) -> &sk_matrix_t {
-        &self.0
-    }
-}
-impl BorrowMut<sk_matrix_t> for Matrix {
-    fn borrow_mut(&mut self) -> &mut sk_matrix_t {
-        &mut self.0
-    }
-}
 impl Matrix {
     pub fn get_scale_x(&self) -> f32 {
         self.0.scaleX
@@ -64,31 +40,6 @@ impl Matrix {
     }
     pub fn set_trans_y(&mut self, trans_y: f32) {
         self.0.transY = trans_y;
-    }
-    pub fn get_persp0(&self) -> f32 {
-        self.0.persp0
-    }
-    pub fn set_persp0(&mut self, persp0: f32) {
-        self.0.persp0 = persp0;
-    }
-    pub fn get_persp1(&self) -> f32 {
-        self.0.persp1
-    }
-    pub fn set_persp1(&mut self, persp1: f32) {
-        self.0.persp1 = persp1;
-    }
-    pub fn get_persp2(&self) -> f32 {
-        self.0.persp2
-    }
-    pub fn set_persp2(&mut self, persp2: f32) {
-        self.0.persp2 = persp2;
-    }
-    #[allow(unused)]
-    pub(crate) fn as_ptr(&self) -> *const sk_matrix_t {
-        &self.0 as _
-    }
-    pub(crate) fn as_ptr_mut(&mut self) -> *mut sk_matrix_t {
-        &mut self.0 as _
     }
 }
 impl Default for Matrix {
@@ -185,3 +136,38 @@ impl Matrix {
         unsafe { sk_matrix_map_radius(self.as_ptr_mut(), radius) }
     }
 }
+
+impl Default for Matrix44 {
+    fn default() -> Self {
+        Self(sk_matrix44_t {
+            m00: 0.0,
+            m01: 0.0,
+            m02: 0.0,
+            m03: 0.0,
+            m10: 0.0,
+            m11: 0.0,
+            m12: 0.0,
+            m13: 0.0,
+            m20: 0.0,
+            m21: 0.0,
+            m22: 0.0,
+            m23: 0.0,
+            m30: 0.0,
+            m31: 0.0,
+            m32: 0.0,
+            m33: 0.0,
+        })
+    }
+}
+
+// crate::pod_struct!(pub Matrix, sk_matrix_t {
+//     pub scaleX: f32,
+//     pub skewX: f32,
+//     pub transX: f32,
+//     pub skewY: f32,
+//     pub scaleY: f32,
+//     pub transY: f32,
+//     pub persp0: f32,
+//     pub persp1: f32,
+//     pub persp2: f32,
+// });

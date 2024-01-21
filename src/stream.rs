@@ -1,10 +1,12 @@
 use std::{ffi::CStr, marker::PhantomData, mem::transmute};
 
+use crate::SkiaPointer;
 use ckia_sys::*;
 
 use crate::data::SkiaData;
 
-crate::opaque_unique!(
+crate::skia_wrapper!(
+    unique,
     DynamicMemoryStream,
     sk_wstream_dynamicmemorystream_t,
     sk_dynamicmemorywstream_destroy
@@ -37,13 +39,23 @@ unsafe impl WStream for DynamicMemoryStream {
         self.inner as _
     }
 }
-crate::opaque_unique!(StreamAsset, sk_stream_asset_t, sk_stream_asset_destroy);
+crate::skia_wrapper!(
+    unique,
+    StreamAsset,
+    sk_stream_asset_t,
+    sk_stream_asset_destroy
+);
 unsafe impl Stream for StreamAsset {
     fn borrow_stream_mut_ptr(&mut self) -> *mut sk_stream_t {
         self.inner as _
     }
 }
-crate::opaque_unique!(FileStream, sk_stream_filestream_t, sk_filestream_destroy);
+crate::skia_wrapper!(
+    unique,
+    FileStream,
+    sk_stream_filestream_t,
+    sk_filestream_destroy
+);
 
 impl FileStream {
     pub fn is_valid(&mut self) -> bool {
@@ -58,7 +70,12 @@ unsafe impl Stream for FileStream {
         self.inner as _
     }
 }
-crate::opaque_unique!(FileWStream, sk_wstream_filestream_t, sk_filewstream_destroy);
+crate::skia_wrapper!(
+    unique,
+    FileWStream,
+    sk_wstream_filestream_t,
+    sk_filewstream_destroy
+);
 
 impl FileWStream {
     pub fn is_valid(&mut self) -> bool {

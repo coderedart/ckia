@@ -2,16 +2,8 @@ use std::{marker::PhantomData, ops::Add};
 
 use ckia_sys::*;
 
-pub type TransferFn = sk_colorspace_transfer_fn_t;
-pub type XYZ = sk_colorspace_xyz_t;
+use crate::{AlphaType, Color4f, ColorType, ColorspaceTransferFn, ColorspaceXyz, SkiaPointer};
 
-pub type ColorType = sk_colortype_t;
-pub type AlphaType = sk_alphatype_t;
-pub type BlendMode = sk_blendmode_t;
-
-#[derive(Debug, Clone, Copy)]
-#[repr(transparent)]
-pub struct Color4f(pub(crate) sk_color4f_t);
 impl Default for Color4f {
     fn default() -> Self {
         Self(sk_color4f_t {
@@ -120,47 +112,8 @@ impl PMColor {
         arr
     }
 }
-pub fn color_type_default() -> ColorType {
-    ColorType::BGRA_8888_SK_COLORTYPE
-}
-pub fn alpha_type_default() -> AlphaType {
-    AlphaType::PREMUL_SK_ALPHATYPE
-}
-pub fn bytes_per_pixel(ct: ColorType) -> u8 {
-    use sk_colortype_t::*;
-    match ct {
-        UNKNOWN_SK_COLORTYPE => 0,
-        ALPHA_8_SK_COLORTYPE => 1,
-        RGB_565_SK_COLORTYPE => 2,
-        ARGB_4444_SK_COLORTYPE => 2,
-        RGBA_8888_SK_COLORTYPE => 4,
-        BGRA_8888_SK_COLORTYPE => 4,
-        RGB_888X_SK_COLORTYPE => 4,
-        RGBA_1010102_SK_COLORTYPE => 4,
-        RGB_101010X_SK_COLORTYPE => 4,
-        BGRA_1010102_SK_COLORTYPE => 4,
-        BGR_101010X_SK_COLORTYPE => 4,
-        BGR_101010X_XR_SK_COLORTYPE => 4,
-        RGBA_10X6_SK_COLORTYPE => 8,
-        GRAY_8_SK_COLORTYPE => 1,
-        RGBA_F16_NORM_SK_COLORTYPE => 8,
-        RGBA_F16_SK_COLORTYPE => 8,
-        RGBA_F32_SK_COLORTYPE => 16,
-        R8G8_UNORM_SK_COLORTYPE => 2,
-        A16_UNORM_SK_COLORTYPE => 2,
-        R16G16_UNORM_SK_COLORTYPE => 4,
-        A16_FLOAT_SK_COLORTYPE => 2,
-        R16G16_FLOAT_SK_COLORTYPE => 4,
-        R16G16B16A16_UNORM_SK_COLORTYPE => 8,
-        SRGBA_8888_SK_COLORTYPE => 4,
-        R8_UNORM_SK_COLORTYPE => 1,
-    }
-}
 
-#[repr(transparent)]
-pub struct ColorSpaceXYZ(sk_colorspace_xyz_t);
-
-impl Default for ColorSpaceXYZ {
+impl Default for ColorspaceXyz {
     fn default() -> Self {
         Self(sk_colorspace_xyz_t {
             fM00: 0.0,
@@ -175,7 +128,7 @@ impl Default for ColorSpaceXYZ {
         })
     }
 }
-impl ColorSpaceXYZ {
+impl ColorspaceXyz {
     pub fn set_srgb(&mut self) {
         unsafe { sk_colorspace_xyz_named_srgb(&mut self.0 as _) }
     }
@@ -197,7 +150,7 @@ impl ColorSpaceXYZ {
     }
 }
 
-impl Add for ColorSpaceXYZ {
+impl Add for ColorspaceXyz {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         let mut result = Self::default();
@@ -208,7 +161,8 @@ impl Add for ColorSpaceXYZ {
     }
 }
 
-crate::opaque_shared!(
+crate::skia_wrapper!(
+    nvrefcnt,
     ColorSpace,
     sk_colorspace_t,
     sk_colorspace_unref,
@@ -227,8 +181,8 @@ impl ColorSpace {
         assert!(!inner.is_null(), "colospace new returned nullptr");
         Self { inner }
     }
-    pub fn new_rgb(transfer_fn: &TransferFn, to_xyzd50: &XYZ) -> Self {
-        let inner = unsafe { sk_colorspace_new_rgb(transfer_fn as _, to_xyzd50 as _) };
+    pub fn new_rgb(transfer_fn: &ColorspaceTransferFn, to_xyzd50: &ColorspaceXyz) -> Self {
+        let inner = unsafe { sk_colorspace_new_rgb(transfer_fn.as_ptr(), to_xyzd50.as_ptr()) };
         assert!(!inner.is_null(), "colospace new returned nullptr");
         Self { inner }
     }
@@ -244,6 +198,13 @@ impl ColorSpace {
         }
         p
     }
+    pub fn gamma_close_to_srgb(&self) -> bool {
+        unsafe { sk_colorspace_gamma_close_to_srgb(self.as_ptr()) }
+    }
+    pub fn gamme_is_linear(&self) -> bool {
+        unsafe { sk_colorspace_gamma_is_linear(self.as_ptr()) }
+    }
+
     /*
     pub fn sk_colorspace_gamma_close_to_srgb(colorspace: *const sk_colorspace_t) -> bool;
     pub fn sk_colorspace_gamma_is_linear(colorspace: *const sk_colorspace_t) -> bool;
@@ -295,21 +256,7 @@ impl ColorSpace {
         b: *const sk_colorspace_xyz_t,
         result: *mut sk_colorspace_xyz_t,
     );
-    pub fn sk_colorspace_icc_profile_delete(profile: *mut sk_colorspace_icc_profile_t);
-    pub fn sk_colorspace_icc_profile_new() -> *mut sk_colorspace_icc_profile_t;
-    pub fn sk_colorspace_icc_profile_parse(
-        buffer: *const ::std::os::raw::c_void,
-        length: usize,
-        profile: *mut sk_colorspace_icc_profile_t,
-    ) -> bool;
-    pub fn sk_colorspace_icc_profile_get_buffer(
-        profile: *const sk_colorspace_icc_profile_t,
-        size: *mut u32,
-    ) -> *const u8;
-    pub fn sk_colorspace_icc_profile_get_to_xyzd50(
-        profile: *const sk_colorspace_icc_profile_t,
-        toXYZD50: *mut sk_colorspace_xyz_t,
-    ) -> bool; */
+    */
 }
 pub struct ICCProfile<'a> {
     inner: *mut sk_colorspace_icc_profile_t,
@@ -351,8 +298,8 @@ impl<'a> ICCProfile<'a> {
             std::slice::from_raw_parts(ptr, length as _)
         }
     }
-    pub fn get_to_xyzd50(&self) -> Option<ColorSpaceXYZ> {
-        let mut space = ColorSpaceXYZ::default();
+    pub fn get_to_xyzd50(&self) -> Option<ColorspaceXyz> {
+        let mut space = ColorspaceXyz::default();
         unsafe {
             sk_colorspace_icc_profile_get_to_xyzd50(self.inner, &mut space.0 as _).then_some(space)
         }

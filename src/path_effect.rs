@@ -1,10 +1,8 @@
 use ckia_sys::*;
 
-use crate::{matrix::Matrix, path::SkiaPath};
+use crate::{path::SkiaPath, Matrix, PathEffect1DStyle, PathEffectTrimMode, SkiaPointer};
 
-pub type PathEffect1DStyle = sk_path_effect_1d_style_t;
-pub type PathEffectTrimMode = sk_path_effect_trim_mode_t;
-crate::opaque_shared!(PathEffect, sk_path_effect_t, sk_path_effect_unref);
+crate::skia_wrapper!(refcnt, PathEffect, sk_path_effect_t, sk_path_effect_unref);
 
 impl PathEffect {
     pub fn create_compose(&self, inner: &Self) -> Self {
