@@ -603,61 +603,61 @@ pub fn link_libs_present_in_the_directory(dir: &Path, target_triple: &str, _pref
     // }
     if !target_triple.contains("linux") {
         println!("cargo:warning=unknown platform. just printing any static libs for linking like it is linux");
-    } /*
-      for f in std::fs::read_dir(dir).expect("failed to read dir for linking libs") {
-          let f = f.expect("failed to get dir entry when reading dir for libs");
-          let libname = f
-              .file_name()
-              .to_str()
-              .expect("non utf-8 libname")
-              .to_string();
+    }
+    for f in std::fs::read_dir(dir).expect("failed to read dir for linking libs") {
+        let f = f.expect("failed to get dir entry when reading dir for libs");
+        let libname = f
+            .file_name()
+            .to_str()
+            .expect("non utf-8 libname")
+            .to_string();
 
-          println!("found file {libname}");
-          if target_triple.contains("windows") {
-              if libname.ends_with(".lib") {
-                  let libname = libname.strip_suffix(".lib").unwrap();
-                  println!("cargo:rustc-link-lib=static={libname}");
-              }
-              if libname.ends_with(".dll") {
-                  let libname = libname.strip_suffix(".dll").unwrap();
-                  println!("cargo:rustc-link-lib=dylib={libname}");
-              }
-          } else if target_triple.contains("darwin") {
-              if libname.ends_with(".a") {
-                  let libname = libname
-                      .strip_suffix(".a")
-                      .unwrap()
-                      .strip_prefix("lib")
-                      .unwrap();
-                  println!("cargo:rustc-link-lib=static={libname}");
-              }
-              if libname.ends_with(".dylib") {
-                  let libname = libname
-                      .strip_suffix(".dylib")
-                      .unwrap()
-                      .strip_prefix("lib")
-                      .unwrap();
-                  println!("cargo:rustc-link-lib=dylib={libname}");
-              }
-          } else {
-              if libname.ends_with(".a") {
-                  let libname = libname
-                      .strip_suffix(".a")
-                      .unwrap()
-                      .strip_prefix("lib")
-                      .unwrap();
-                  println!("cargo:rustc-link-lib=static={libname}");
-              }
-              if libname.ends_with(".so") {
-                  let libname = libname
-                      .strip_suffix(".so")
-                      .unwrap()
-                      .strip_prefix("lib")
-                      .unwrap();
-                  println!("cargo:rustc-link-lib=dylib={libname}");
-              }
-          }
-      }*/
+        println!("found file {libname}");
+        if target_triple.contains("windows") {
+            if libname.ends_with(".lib") {
+                let libname = libname.strip_suffix(".lib").unwrap();
+                println!("cargo:rustc-link-lib=static={libname}");
+            }
+            if libname.ends_with(".dll") {
+                let libname = libname.strip_suffix(".dll").unwrap();
+                println!("cargo:rustc-link-lib=dylib={libname}");
+            }
+        } else if target_triple.contains("darwin") {
+            if libname.ends_with(".a") {
+                let libname = libname
+                    .strip_suffix(".a")
+                    .unwrap()
+                    .strip_prefix("lib")
+                    .unwrap();
+                println!("cargo:rustc-link-lib=static={libname}");
+            }
+            if libname.ends_with(".dylib") {
+                let libname = libname
+                    .strip_suffix(".dylib")
+                    .unwrap()
+                    .strip_prefix("lib")
+                    .unwrap();
+                println!("cargo:rustc-link-lib=dylib={libname}");
+            }
+        } else {
+            if libname.ends_with(".a") {
+                let libname = libname
+                    .strip_suffix(".a")
+                    .unwrap()
+                    .strip_prefix("lib")
+                    .unwrap();
+                println!("cargo:rustc-link-lib=static={libname}");
+            }
+            if libname.ends_with(".so") {
+                let libname = libname
+                    .strip_suffix(".so")
+                    .unwrap()
+                    .strip_prefix("lib")
+                    .unwrap();
+                println!("cargo:rustc-link-lib=dylib={libname}");
+            }
+        }
+    }
 }
 pub fn check_command_version(cmd: &str, cd: &str) -> Result<(), String> {
     if Command::new(cmd)

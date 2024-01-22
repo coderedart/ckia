@@ -175,9 +175,3 @@ impl SurfaceProps {
         unsafe { sk_surfaceprops_get_pixel_geometry(self.as_ptr_mut()) }
     }
 }
-
-/*
-pub fn sk_surfaceprops_new(flags: u32, geometry: sk_pixelgeometry_t) -> *mut sk_surfaceprops_t;
-pub fn sk_surfaceprops_delete(props: *mut sk_surfaceprops_t);
-pub fn sk_surfaceprops_get_flags(props: *mut sk_surfaceprops_t) -> u32;
-pub fn sk_surfaceprops_get_pixel_geometry(props: *mut sk_surfaceprops_t) -> sk_pixelgeometry_t; */

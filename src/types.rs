@@ -57,7 +57,7 @@ pub type RuntimeEffectChildType = sk_runtimeeffect_child_type_t;
 pub type RuntimeEffectUniformFlags = sk_runtimeeffect_uniform_flags_t;
 pub type FilterMode = sk_filter_mode_t;
 pub type MipmapMode = sk_mipmap_mode_t;
-pub type TtieAnimationRenderFlags = skottie_animation_renderflags_t;
+pub type SkottieAnimationRenderFlags = skottie_animation_renderflags_t;
 
 crate::pod_struct!(pub Color4f, sk_color4f_t {
     pub fR: f32,
@@ -421,7 +421,19 @@ impl Point {
     }
 }
 pub type Vector = Point;
+impl Default for Size {
+    fn default() -> Self {
+        Self::new(0.0, 0.0)
+    }
+}
+impl Size {
+    pub const ZERO: Self = Self::new(0.0, 0.0);
+    pub const INF: Self = Self::new(f32::INFINITY, f32::INFINITY);
 
+    pub const fn new(w: f32, h: f32) -> Self {
+        Self(sk_size_t { w, h })
+    }
+}
 impl GlTextureInfo {
     /// target is the texture binding target
     /// id is the gl texture

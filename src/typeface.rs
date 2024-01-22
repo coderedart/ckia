@@ -10,41 +10,68 @@ use ckia_sys::*;
 crate::skia_wrapper!(refcnt, Typeface, sk_typeface_t, sk_typeface_unref);
 
 impl Typeface {
+    pub fn get_fontstyle(&self) -> Option<FontStyle> {
+        unsafe { FontStyle::try_from_owned_ptr(sk_typeface_get_fontstyle(self.as_ptr())) }
+    }
+    pub fn get_font_weight(&self) -> ::std::os::raw::c_int {
+        unsafe { sk_typeface_get_font_weight(self.as_ptr()) }
+    }
+    pub fn get_font_width(&self) -> ::std::os::raw::c_int {
+        unsafe { sk_typeface_get_font_width(self.as_ptr()) }
+    }
+    pub fn get_font_slant(&self) -> FontStyleSlant {
+        unsafe { sk_typeface_get_font_slant(self.as_ptr()) }
+    }
+    pub fn is_fixed_pitch(&self) -> bool {
+        unsafe { sk_typeface_is_fixed_pitch(self.as_ptr()) }
+    }
+    pub fn unichars_to_glyphs(&self, unichars: &[i32], glyphs: &mut [u16]) {
+        assert!(unichars.len() <= glyphs.len());
+        unsafe {
+            sk_typeface_unichars_to_glyphs(
+                self.as_ptr(),
+                unichars.as_ptr(),
+                unichars.len() as _,
+                glyphs.as_mut_ptr(),
+            )
+        }
+    }
+    pub fn unichar_to_glyph(&self, unichar: i32) -> u16 {
+        unsafe { sk_typeface_unichar_to_glyph(self.as_ptr(), unichar) }
+    }
+
+    pub fn count_glyphs(&self) -> ::std::os::raw::c_int {
+        unsafe { sk_typeface_count_glyphs(self.as_ptr()) }
+    }
+    pub fn count_tables(&self) -> ::std::os::raw::c_int {
+        unsafe { sk_typeface_count_tables(self.as_ptr()) }
+    }
+    /// returns zero if error. otherwise, returns the number of tags written (equal to [Self::count_tables])
+    /// make sure tags is atleast the size returned by [Self::count_tables]
+    pub fn get_table_tags(&self, tags: &mut [u32]) -> i32 {
+        assert!(tags.len() >= self.count_tables() as _);
+        unsafe { sk_typeface_get_table_tags(self.as_ptr(), tags.as_mut_ptr()) }
+    }
+
+    pub fn get_table_size(&self, tag: u32) -> usize {
+        unsafe { sk_typeface_get_table_size(self.as_ptr(), tag) }
+    }
+    /// If there's an error, zero is returned. Although we may have still partially written a few bytes into the data.
+    /// otherwise, the number of bytes written to data, which must be atleast the size of `length`
+    pub fn get_table_data(&self, tag: u32, offset: usize, length: usize, data: &mut [u8]) -> usize {
+        assert!(length <= data.len());
+        unsafe { sk_typeface_get_table_data(self.as_ptr(), tag, offset, length, data.as_mut_ptr() as _) }
+    }
+    pub fn copy_table_data(&self, tag: u32) -> Option<SkiaData> {
+        unsafe { SkiaData::try_from_owned_ptr(sk_typeface_copy_table_data(self.as_ptr(), tag)) }
+    }
+    pub fn get_units_per_em(&self) -> i32 {
+        unsafe {
+            sk_typeface_get_units_per_em(self.as_ptr())
+        }
+    }
+    
     /*
-    pub fn sk_typeface_get_fontstyle(typeface: *const sk_typeface_t) -> *mut sk_fontstyle_t;
-    pub fn sk_typeface_get_font_weight(typeface: *const sk_typeface_t) -> ::std::os::raw::c_int;
-    pub fn sk_typeface_get_font_width(typeface: *const sk_typeface_t) -> ::std::os::raw::c_int;
-    pub fn sk_typeface_get_font_slant(typeface: *const sk_typeface_t) -> sk_font_style_slant_t;
-    pub fn sk_typeface_is_fixed_pitch(typeface: *const sk_typeface_t) -> bool;
-    pub fn sk_typeface_unichars_to_glyphs(
-        typeface: *const sk_typeface_t,
-        unichars: *const i32,
-        count: ::std::os::raw::c_int,
-        glyphs: *mut u16,
-    );
-    pub fn sk_typeface_unichar_to_glyph(typeface: *const sk_typeface_t, unichar: i32) -> u16;
-    pub fn sk_typeface_count_glyphs(typeface: *const sk_typeface_t) -> ::std::os::raw::c_int;
-    pub fn sk_typeface_count_tables(typeface: *const sk_typeface_t) -> ::std::os::raw::c_int;
-    pub fn sk_typeface_get_table_tags(
-        typeface: *const sk_typeface_t,
-        tags: *mut sk_font_table_tag_t,
-    ) -> ::std::os::raw::c_int;
-    pub fn sk_typeface_get_table_size(
-        typeface: *const sk_typeface_t,
-        tag: sk_font_table_tag_t,
-    ) -> usize;
-    pub fn sk_typeface_get_table_data(
-        typeface: *const sk_typeface_t,
-        tag: sk_font_table_tag_t,
-        offset: usize,
-        length: usize,
-        data: *mut ::std::os::raw::c_void,
-    ) -> usize;
-    pub fn sk_typeface_copy_table_data(
-        typeface: *const sk_typeface_t,
-        tag: sk_font_table_tag_t,
-    ) -> *mut sk_data_t;
-    pub fn sk_typeface_get_units_per_em(typeface: *const sk_typeface_t) -> ::std::os::raw::c_int;
     pub fn sk_typeface_get_kerning_pair_adjustments(
         typeface: *const sk_typeface_t,
         glyphs: *const u16,
@@ -56,8 +83,7 @@ impl Typeface {
         typeface: *const sk_typeface_t,
         ttcIndex: *mut ::std::os::raw::c_int,
     ) -> *mut sk_stream_asset_t;
-
-     */
+    */
 }
 
 crate::skia_wrapper!(refcnt, FontMgr, sk_fontmgr_t, sk_fontmgr_unref);

@@ -2,7 +2,7 @@ use std::{marker::PhantomData, ops::Add};
 
 use ckia_sys::*;
 
-use crate::{AlphaType, Color4f, ColorType, ColorspaceTransferFn, ColorspaceXyz, SkiaPointer};
+use crate::{Color4f, ColorspaceTransferFn, ColorspaceXyz, SkiaPointer};
 
 impl Default for Color4f {
     fn default() -> Self {
@@ -99,6 +99,11 @@ impl From<PMColor> for Color {
 impl PMColor {
     /// The current default layout as the bitshifts of each of the color components in order ARGB
     /// eg: arr[0] is the number of bits shifted for alpha component. 2 is red, 3 green, 4 blue.
+    /// So, if the format is ARGB8888, then Alpha is shifted by 24 bits, R by 16, G by 8 and B by 0.
+    ///
+    /// This will tell you the "layout" of color components within a pixel. eg: ARGB vs ABGR
+    ///
+    /// **NOTE**: This has NOTHING to do with `ColorTypeByteShiftPerPixel` from skia, which is completely different.
     pub fn get_bit_shift() -> [i32; 4] {
         let mut arr = [0i32; 4];
         unsafe {

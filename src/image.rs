@@ -1,11 +1,7 @@
 use crate::{
-    bitmap::BitMap,
-    color::ColorSpace,
-    data::SkiaData,
-    gr_context::{BackendTexture, GrRecordingContext},
-    pixmap::PixMap,
-    shader::Shader,
-    AlphaType, ColorType, Matrix, SamplingOptions, ShaderTileMode, SkiaPointer, SurfaceOrigin,
+    bitmap::BitMap, color::ColorSpace, data::SkiaData, gr_context::GrRecordingContext,
+    pixmap::PixMap, shader::Shader, AlphaType, ColorType, Matrix, SamplingOptions, ShaderTileMode,
+    SkiaPointer,
 };
 use ckia_sys::*;
 
