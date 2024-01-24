@@ -291,7 +291,7 @@ pub fn try_build_from_src(
         assert!(
             Command::new(&python)
                 .current_dir(&skia_dir)
-                .args(&["tools/git-sync-deps"])
+                .args(["tools/git-sync-deps"])
                 .env("GIT_SYNC_DEPS_SKIP_EMSDK", "True")
                 .env("GIT_SYNC_DEPS_SHALLOW_CLONE", "True")
                 .stdout(Stdio::inherit())
@@ -480,7 +480,7 @@ pub fn try_build_from_src(
     assert!(
         Command::new(&gn)
             .current_dir(&skia_dir)
-            .args(&["args", "--list", "--short", out_dir.to_str().unwrap(),])
+            .args(["args", "--list", "--short", out_dir.to_str().unwrap(),])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
@@ -541,7 +541,7 @@ pub fn try_build_from_src(
     if let Ok(p) = var(SKIA_COPY_LIBS) {
         println!("copying libs to {p}");
         let mut files_to_archive = vec![];
-        for f in std::fs::read_dir(&out_dir).unwrap() {
+        for f in std::fs::read_dir(out_dir).unwrap() {
             let f = f.unwrap().file_name().to_str().unwrap().to_string();
             if f.ends_with(".lib")
                 || f.ends_with(".dat")

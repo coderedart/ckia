@@ -4,7 +4,7 @@ This project will take skia and generate rust bindings for it. It also takes car
 
 fast compile times is the highest priority. and we do this by:
 1. providing prebuilt static and dynamic libraries, which can be downloaded by build script for common configurations
-2. maintain manual C bindings and use pre-generated bindings, instead of generating bindings at build time. avoids bindgen dependency and 6 seconds of build time. 
+2. maintain manual C bindings and use pre-generated bindings, instead of generating bindings at build time. avoids bindgen dependency and cuts atleast `6` seconds of build time. 
 
 ### Generate Bindings
 1. install bindgen with `cargo install bindgen`
@@ -38,11 +38,10 @@ If you are building from source:
 skia requries some complex build steps. Here's a rough outline which you will need to understand, if you want to make custom builds.
 
 1. There are two different repositories involved. 
-    1. https://github.com/coderedart/skia which contains skia source + `SkiaSharp`'s stable FFI bindings
+    1. https://github.com/coderedart/skia which contains skia source + `SkiaSharp`'s stable FFI bindings + pre-build static and dynamic skia libraries, which can be used by above `ckia_sys` to skip building from source.
     2. https://github.com/coderedart/ckia_sys which provides
         1. rust ffi bindings using bindgen 
         2. `ckia_sys`'s `build.rs` for building skia
-        3. pre-build static and dynamic skia libraries, which can be used by above `build.rs` to skip building from source.
 2. Skia build consists of the following steps
     1. download/clone the skia source (from step 1.1). 
     2. change current working directory into the skia project root.
@@ -70,7 +69,7 @@ skia requries some complex build steps. Here's a rough outline which you will ne
         5. The advantage is that, we only have to download the libs once and keep reusing the cached archive between different cargo project builds or after `cargo clean` in the same project. 
         6. After the first libs archive download, the next build should take less than a second. 
     2. If you enable `disable_download_pre_built_skia_libs` feature, then we will skip previous step. And try to build from source. 
-        1. If `SKIA_SRC_DIR` is set, we will use that as the source directory. If not, We download skia source tarball into cache directory, extract the sources in cache directory. If `SKIA_SRC_ARCHIVE_URL` is set, we will use that to download source archive, otherwise we default to `ckia_sys` repo's releases. 
+        1. If `SKIA_SRC_DIR` is set, we will use that as the source directory. If not, We download skia source tarball into cache directory, extract the sources in cache directory. If `SKIA_SRC_ARCHIVE_URL` is set, we will use that to download source archive, otherwise we default to `coderedart/skia` repo's releases. 
         2. pull third_party dependencies and `gn` using python (step 2.4). If you want us to use a specific python executable, then set `SKIA_PYTHON=/path/to/python`. Otherwise, we will just use `python` and let the shell look up the default python installation.   
         3. Just like caching downloaded pre-built libs, this will ensure that all of your cargo projects will reuse the same skia source and its third_party lib sources which will easily reach **hundreds of MB** worth bandwidth!!!
         4. Now that we have the required sources, we will generate build config with build_directory set to `OUT_DIR`.

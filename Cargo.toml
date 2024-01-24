@@ -8,6 +8,8 @@ homepage = "https://github.com/coderedart/ckia.git"
 documentation = "https://docs.rs/ckia"
 
 [features]
+default = []
+no_pre_built_libs = ["ckia_sys/disable_download_pre_built_skia_libs"]
 
 [dependencies]
 ckia_sys = { version = "121", path = "ckia_sys" }

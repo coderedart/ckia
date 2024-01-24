@@ -1,6 +1,4 @@
-use ckia::{
-    paint::Paint, skottie::SkottieAnimation, sksg::SkSgInvalidationController, Color, Rect,
-};
+use ckia::{skottie::SkottieAnimation, sksg::SkSgInvalidationController, Color, Rect};
 use helper::HelperContext;
 
 mod helper;

@@ -115,20 +115,22 @@ pub struct HelperContext {
     pub events_receiver: GlfwReceiver<(f64, WindowEvent)>,
     pub window: PWindow,
     pub glfw_context: Glfw,
+    pub scale: [f32; 2],
 }
 impl HelperContext {
     pub fn new(window_width_height: [u32; 2]) -> Self {
         let (glfw_context, mut window, events_receiver) = create_window(window_width_height);
+        let (sx, sy) = window.get_content_scale();
         let glow_context =
             unsafe { glow::Context::from_loader_function(|s| window.get_proc_address(s)) };
         let (gl_interface, mut gl_direct_context) =
             create_gl_interface_and_direct_context(&mut window);
-        let (render_target, surface) =
+        let (render_target, mut surface) =
             create_render_target_and_surface(&mut window, &glow_context, &mut gl_direct_context);
+
         // for text rendering
         let mut fontmgr = FontMgr::create_custom_dir(".").unwrap();
         let mut fira_data = SkiaData::new_with_copy(FIRA_CODE_REGULAR_BYTES);
-        dbg!(fira_data.get_size());
         let mut fira_tf = fontmgr.create_from_data(&mut fira_data, 0).unwrap();
         let fira_font = Font::new_with_values(&mut fira_tf, 64.0, 1.0, 0.0).unwrap();
         let huge_fira_font = Font::new_with_values(&mut fira_tf, 128.0, 2.0, 0.0).unwrap();
@@ -145,6 +147,7 @@ impl HelperContext {
             events_receiver,
             window,
             glfw_context,
+            scale: [sx, sy],
             events: vec![],
         }
     }
@@ -157,6 +160,9 @@ impl HelperContext {
                     glfw::WindowEvent::Close => {
                         self.window.set_should_close(true);
                     }
+                    glfw::WindowEvent::ContentScale(sx, sy) => {
+                        self.scale = [*sx, *sy];
+                    }
                     glfw::WindowEvent::FramebufferSize(w, h) => unsafe {
                         let w = *w;
                         let h = *h;
@@ -168,8 +174,7 @@ impl HelperContext {
                             &mut self.gl_direct_context,
                         );
                         self.render_target = render_target;
-                        self.surface = self.surface;
-                        println!("resize event with width: {w}, height: {h}");
+                        self.surface = surface;
                     },
                     glfw::WindowEvent::Key(k, _, _, _) => match k {
                         glfw::Key::Escape => {
@@ -182,7 +187,14 @@ impl HelperContext {
                 events.push(ev);
             }
             self.events = events;
+            let mut surface_canvas = self.surface.get_canvas();
+            let save_count = surface_canvas.as_mut().save();
+            surface_canvas.as_mut().scale(self.scale[0], self.scale[1]);
             painting_fn(&mut self);
+            self.surface
+                .get_canvas()
+                .as_mut()
+                .restore_to_count(save_count);
             self.gl_direct_context.flush_and_submit(true);
             self.window.swap_buffers();
         }
