@@ -59,6 +59,20 @@ pub type FilterMode = sk_filter_mode_t;
 pub type MipmapMode = sk_mipmap_mode_t;
 pub type SkottieAnimationRenderFlags = skottie_animation_renderflags_t;
 
+pub type Affinity = tl_affinity_t;
+pub type RectHeightStyle = tl_rect_height_style_t;
+pub type RectWidthStyle = tl_rect_width_style_t;
+pub type ParagraphTextAlign = tl_text_align_t;
+pub type TextDirection = tl_text_direction_t;
+pub type TextBaseline = tl_text_baseline_t;
+pub type TextHeightBehavior = tl_text_height_behavior_t;
+pub type LineMetricStyle = tl_line_metric_style_t;
+pub type TextDecoration = tl_text_decoration_t;
+pub type TextDecorationStyle = tl_text_decoration_style_t;
+pub type TextDecorationMode = tl_text_decoration_mode_t;
+pub type StyleType = tl_style_type_t;
+pub type PlaceholderAlignment = tl_placeholder_alignment_t;
+
 crate::pod_struct!(pub Color4f, sk_color4f_t {
     pub fR: f32,
     pub fG: f32,
@@ -369,6 +383,38 @@ crate::pod_struct!(pub SamplingOptions, sk_sampling_options_t {
     pub fMipmap: sk_mipmap_mode_t,
 });
 
+crate::pod_struct!(pub PositionWithAffinity, tl_position_with_affinity_t {
+    pub position: i32,
+    pub affinity: tl_affinity_t,
+});
+crate::pod_struct!(pub TextBox, tl_text_box_t {
+    pub rect: sk_rect_t,
+    pub direction: tl_text_direction_t,
+});
+crate::pod_struct!(pub TextShadow, tl_text_shadow_t {
+    pub fColor: sk_color_t,
+    pub fOffset: sk_point_t,
+    pub fBlurSigma: f64,
+});
+crate::pod_struct!(pub PlaceholderStyle, tl_placeholder_style_t {
+    pub fWidth: f32,
+    pub fHeight: f32,
+    pub fAlignment: tl_placeholder_alignment_t,
+    pub fBaseline: tl_text_baseline_t,
+    pub fBaselineOffset: f32,
+});
+crate::pod_struct!(pub Decoration, tl_decoration_t {
+    pub fType: tl_text_decoration_t,
+    pub fMode: tl_text_decoration_mode_t,
+    pub fColor: sk_color_t,
+    pub fStyle: tl_text_decoration_style_t,
+    pub fThicknessMultiplier: f32,
+});
+crate::pod_struct!(pub DashPathEffect, tl_dash_path_effect {
+    pub fOnLength: f32,
+    pub fOffLength: f32,
+});
+
 impl Default for Rect {
     fn default() -> Self {
         Self::ZERO
@@ -379,12 +425,12 @@ impl Rect {
     pub const INF: Self = Self::new(0.0, 0.0, f32::INFINITY, f32::INFINITY);
     pub const MAX: Self = Self::new(f32::MAX, f32::MAX, f32::MAX, f32::MAX);
     pub const fn new(left: f32, top: f32, right: f32, bottom: f32) -> Self {
-        Self(sk_rect_t {
+        Self {
             left,
             top,
             right,
             bottom,
-        })
+        }
     }
 }
 impl Default for IRect {
@@ -396,17 +442,17 @@ impl IRect {
     pub const ZERO: Self = Self::new(0, 0, 0, 0);
     pub const MAX: Self = Self::new(i32::MAX, i32::MAX, i32::MAX, i32::MAX);
     pub const fn new(left: i32, top: i32, right: i32, bottom: i32) -> Self {
-        Self(sk_irect_t {
+        Self {
             left,
             top,
             right,
             bottom,
-        })
+        }
     }
 }
 impl Default for Point {
     fn default() -> Self {
-        Self(sk_point_t { x: 0.0, y: 0.0 })
+        Self { x: 0.0, y: 0.0 }
     }
 }
 impl Point {
@@ -417,7 +463,7 @@ impl Point {
     pub const INF: Self = Self::new(f32::INFINITY, f32::INFINITY);
 
     pub const fn new(x: f32, y: f32) -> Self {
-        Self(sk_point_t { x, y })
+        Self { x, y }
     }
 }
 pub type Vector = Point;
@@ -431,7 +477,7 @@ impl Size {
     pub const INF: Self = Self::new(f32::INFINITY, f32::INFINITY);
 
     pub const fn new(w: f32, h: f32) -> Self {
-        Self(sk_size_t { w, h })
+        Self { w, h }
     }
 }
 impl GlTextureInfo {
@@ -442,22 +488,35 @@ impl GlTextureInfo {
     /// # Safety
     /// make sure that the arguments are valid
     pub unsafe fn new(target: u32, id: u32, format: u32, protected: bool) -> Self {
-        Self(gr_gl_textureinfo_t {
+        Self {
             fTarget: target,
             fID: id,
             fFormat: format,
             fProtected: protected,
-        })
+        }
     }
 }
-
+impl SamplingOptions {
+    pub const LINEAR: Self = SamplingOptions {
+        fMaxAniso: 0,
+        fUseCubic: false,
+        fCubic: CubicResampler { fB: 0.0, fC: 0.0 }.into_native(),
+        fFilter: FilterMode::LINEAR_SK_FILTER_MODE,
+        fMipmap: MipmapMode::LINEAR_SK_MIPMAP_MODE,
+    };
+}
+impl Default for SamplingOptions {
+    fn default() -> Self {
+        Self::LINEAR
+    }
+}
 impl GlFramebufferInfo {
     pub unsafe fn new(id: u32, format: u32, protected: bool) -> Self {
-        Self(gr_gl_framebufferinfo_t {
+        Self {
             fFBOID: id,
             fFormat: format,
             fProtected: protected,
-        })
+        }
     }
 }
 pub const DEFAULT_COLOR_TYPE: ColorType = ColorType::BGRA_8888_SK_COLORTYPE;

@@ -1,22 +1,37 @@
 [package]
 name = "ckia"
-version = "0.1.0"
-edition = "2021"
-license = "MIT or Apache-2.0"
-repository = "https://github.com/coderedart/ckia.git"
-homepage = "https://github.com/coderedart/ckia.git"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 documentation = "https://docs.rs/ckia"
 
 [features]
-default = []
+default = ["static_linking", "mlua"]
+mlua = ["dep:mlua", "ckia_sys/mlua"]
 no_pre_built_libs = ["ckia_sys/disable_download_pre_built_skia_libs"]
+static_linking = ["ckia_sys/static_linking"]
 
 [dependencies]
-ckia_sys = { version = "121", path = "ckia_sys" }
+ckia_sys = { version = "*", path = "ckia_sys" }
 paste = { version = "*" }
+mlua = { workspace = true, optional = true }
+
 [dev-dependencies]
 glfw = { version = "*" }
 glow = { version = "*" }
-
+mlua = { workspace = true }
 [workspace]
 members = ["ckia_sys"]
+resolver = "2"
+package.version = "122.2.0"
+package.edition = "2021"
+package.rust-version = "1.74"
+package.license = "MIT OR Apache-2.0"
+package.homepage = "https://github.com/coderedart/ckia.git"
+package.repository = "https://github.com/coderedart/ckia.git"
+
+[workspace.dependencies]
+mlua = { version = "0.9", features = ["luau-vector4"] }

@@ -1,9 +1,10 @@
 use ckia_sys::*;
 
 use crate::{
-    bitmap::BitMap, color::Color, font::Font, paint::Paint, path::SkiaPath, region::Region,
-    rrect::RRect, skia_wrapper, text_blob::TextBlob, BlendMode, ClipOp, Color4f, IRect, Matrix44,
-    Point, PointMode, Rect, SkiaPointer, TextEncoding,
+    bitmap::BitMap, color::Color, font::Font, image::Image, paint::Paint, path::SkiaPath,
+    picture::Picture, region::Region, rrect::RRect, skia_wrapper, text_blob::TextBlob, BlendMode,
+    ClipOp, Color4f, IRect, Matrix, Matrix44, Point, PointMode, Rect, SamplingOptions, SkiaPointer,
+    TextEncoding,
 };
 
 skia_wrapper!(unique, Canvas, sk_canvas_t, sk_canvas_destroy);
@@ -23,7 +24,7 @@ impl Canvas {
     }
     pub fn clear_color4f(&mut self, color: Color4f) {
         unsafe {
-            sk_canvas_clear_color4f(self.inner, color.0);
+            sk_canvas_clear_color4f(self.inner, *color.as_ref());
         }
     }
     pub fn discard(&mut self) {
@@ -42,7 +43,7 @@ impl Canvas {
     }
     pub fn draw_color4f(&mut self, color: Color4f, mode: BlendMode) {
         unsafe {
-            sk_canvas_draw_color4f(self.inner, color.0, mode);
+            sk_canvas_draw_color4f(self.inner, *color.as_ref(), mode);
         }
     }
     pub fn draw_points(&mut self, mode: PointMode, points: &[Point], paint: &Paint) {
@@ -172,30 +173,55 @@ impl Canvas {
     pub fn draw_path(&mut self, path: &SkiaPath, paint: &Paint) {
         unsafe { sk_canvas_draw_path(self.as_ptr_mut(), path.as_ptr(), paint.as_ptr()) }
     }
-
-    /*
-    pub fn sk_canvas_draw_image(
-        ccanvas: *mut sk_canvas_t,
-        cimage: *const sk_image_t,
+    pub fn draw_image(
+        &mut self,
+        image: &Image,
         x: f32,
         y: f32,
-        sampling: *const sk_sampling_options_t,
-        cpaint: *const sk_paint_t,
-    );
-    pub fn sk_canvas_draw_image_rect(
-        ccanvas: *mut sk_canvas_t,
-        cimage: *const sk_image_t,
-        csrcR: *const sk_rect_t,
-        cdstR: *const sk_rect_t,
-        sampling: *const sk_sampling_options_t,
-        cpaint: *const sk_paint_t,
-    );
-    pub fn sk_canvas_draw_picture(
-        ccanvas: *mut sk_canvas_t,
-        cpicture: *const sk_picture_t,
-        cmatrix: *const sk_matrix_t,
-        cpaint: *const sk_paint_t,
-    );
+        sampling: &SamplingOptions,
+        paint: &Paint,
+    ) {
+        unsafe {
+            sk_canvas_draw_image(
+                self.as_ptr_mut(),
+                image.as_ptr(),
+                x,
+                y,
+                sampling.as_ptr(),
+                paint.as_ptr(),
+            )
+        }
+    }
+    pub fn draw_image_rect(
+        &mut self,
+        image: &Image,
+        src: &Rect,
+        dst: &Rect,
+        sampling: &SamplingOptions,
+        paint: &Paint,
+    ) {
+        unsafe {
+            sk_canvas_draw_image_rect(
+                self.as_ptr_mut(),
+                image.as_ptr(),
+                src.as_ptr(),
+                dst.as_ptr(),
+                sampling.as_ptr(),
+                paint.as_ptr(),
+            )
+        }
+    }
+    pub fn draw_picture(&mut self, picture: &Picture, mat: &Matrix, paint: &Paint) {
+        unsafe {
+            sk_canvas_draw_picture(
+                self.as_ptr_mut(),
+                picture.as_ptr(),
+                mat.as_ptr(),
+                paint.as_ptr(),
+            )
+        }
+    }
+    /*
     pub fn sk_canvas_draw_drawable(
         ccanvas: *mut sk_canvas_t,
         cdrawable: *mut sk_drawable_t,
@@ -207,7 +233,6 @@ impl Canvas {
     }
 
     /*
-    pub fn sk_canvas_flush(ccanvas: *mut sk_canvas_t);
     pub fn sk_canvas_new_from_raster(
         cinfo: *const sk_imageinfo_t,
         pixels: *mut ::std::os::raw::c_void,

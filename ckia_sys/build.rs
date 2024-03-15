@@ -76,8 +76,8 @@ fn main() {
     if cfg!(not(windows)) {
         println!("cargo:rustc-link-lib=stdc++");
     }
-    if cfg!(feature = "dynamic_linking") {
-        println!("cargo:warning= early exit because of dynamic linking");
+    if !cfg!(feature = "static_linking") {
+        println!("cargo:warning= early exit because static_linking feature is not enabled");
 
         let libs_dir = skia_cache_dir.join(format!("{prefix}_{target_triple}"));
         if libs_dir.exists() {
@@ -604,6 +604,14 @@ pub fn link_libs_present_in_the_directory(dir: &Path, target_triple: &str, _pref
     if !target_triple.contains("linux") {
         println!("cargo:warning=unknown platform. just printing any static libs for linking like it is linux");
     }
+    // we can *probably* get off by just printing these, but its better to link to all provided static libs.
+    // println!("cargo:rustc-link-lib=static=skia");
+    // println!("cargo:rustc-link-lib=static=skottie");
+    // println!("cargo:rustc-link-lib=static=sksg");
+    // println!("cargo:rustc-link-lib=static=skshaper");
+    // println!("cargo:rustc-link-lib=static=skunicode");
+    // println!("cargo:rustc-link-lib=harfbuzz");
+
     for f in std::fs::read_dir(dir).expect("failed to read dir for linking libs") {
         let f = f.expect("failed to get dir entry when reading dir for libs");
         let libname = f

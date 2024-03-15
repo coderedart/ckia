@@ -1,3 +1,5 @@
+use std::ptr::null_mut;
+
 use ckia_sys::*;
 
 use crate::{
@@ -13,9 +15,7 @@ crate::skia_wrapper!(unique, Paint, sk_paint_t, sk_paint_delete);
 
 impl Clone for Paint {
     fn clone(&self) -> Self {
-        let inner = unsafe { sk_paint_clone(self.inner) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_paint_clone(self.inner)) }
     }
 }
 
@@ -44,7 +44,7 @@ impl Paint {
     pub fn get_color4f(&self) -> Color4f {
         let mut color = Color4f::default();
         unsafe {
-            sk_paint_get_color4f(self.inner, &mut color.0 as _);
+            sk_paint_get_color4f(self.inner, color.as_ptr_mut());
         }
         color
     }
@@ -53,7 +53,7 @@ impl Paint {
     }
     pub fn set_color4f(&mut self, mut color: Color4f, space: &ColorSpace) {
         unsafe {
-            sk_paint_set_color4f(self.inner, &mut color.0 as _, space.inner);
+            sk_paint_set_color4f(self.inner, color.as_ptr_mut(), space.inner);
         }
     }
     pub fn get_style(&self) -> PaintStyle {
@@ -86,14 +86,22 @@ impl Paint {
     pub fn set_stroke_join(&mut self, stroke_join: StrokeJoin) {
         unsafe { sk_paint_set_stroke_join(self.inner, stroke_join) }
     }
-    pub fn set_shader(&mut self, shader: &Shader) {
+    pub fn set_shader(&mut self, shader: Option<&mut Shader>) {
         unsafe {
-            sk_paint_set_shader(self.inner, shader.inner);
+            sk_paint_set_shader(
+                self.inner,
+                shader
+                    .map(|s| s.as_ptr_mut())
+                    .unwrap_or(std::ptr::null_mut()),
+            );
         }
     }
-    pub fn set_maskfilter(&mut self, filter: &MaskFilter) {
+    pub fn set_maskfilter(&mut self, filter: Option<&mut MaskFilter>) {
         unsafe {
-            sk_paint_set_maskfilter(self.inner, filter.inner);
+            sk_paint_set_maskfilter(
+                self.inner,
+                filter.map(|f| f.as_ptr_mut()).unwrap_or(null_mut()),
+            );
         }
     }
     pub fn set_blendmode(&mut self, mode: BlendMode) {
@@ -110,13 +118,18 @@ impl Paint {
         }
     }
     pub fn get_shader(&mut self) -> Option<Shader> {
-        unsafe { Shader::try_from_owned_ptr(sk_paint_get_shader(self.inner)) }
+        unsafe { Shader::try_from_owned_ptr(sk_paint_get_shader(self.as_ptr_mut())) }
     }
     pub fn get_maskfilter(&mut self) -> Option<MaskFilter> {
         unsafe { MaskFilter::try_from_owned_ptr(sk_paint_get_maskfilter(self.inner)) }
     }
-    pub fn set_colorfilter(&mut self, filter: &ColorFilter) {
-        unsafe { sk_paint_set_colorfilter(self.inner, filter.inner) }
+    pub fn set_colorfilter(&mut self, filter: Option<&mut ColorFilter>) {
+        unsafe {
+            sk_paint_set_colorfilter(
+                self.inner,
+                filter.map(|f| f.as_ptr_mut()).unwrap_or(null_mut()),
+            )
+        }
     }
     pub fn get_colorfilter(&mut self) -> Option<ColorFilter> {
         unsafe { ColorFilter::try_from_owned_ptr(sk_paint_get_colorfilter(self.inner)) }
@@ -133,8 +146,13 @@ impl Paint {
     pub fn get_path_effect(&mut self) -> Option<PathEffect> {
         unsafe { PathEffect::try_from_owned_ptr(sk_paint_get_path_effect(self.inner)) }
     }
-    pub fn set_path_effect(&mut self, path_effect: &mut PathEffect) {
-        unsafe { sk_paint_set_path_effect(self.inner, path_effect.inner) }
+    pub fn set_path_effect(&mut self, path_effect: Option<&mut PathEffect>) {
+        unsafe {
+            sk_paint_set_path_effect(
+                self.inner,
+                path_effect.map(|f| f.as_ptr_mut()).unwrap_or(null_mut()),
+            )
+        }
     }
     /// if success, dst has the result and return value is true. if not, then dst remains untouched and we return false.
     #[must_use]

@@ -1,4 +1,7 @@
-use std::marker::PhantomData;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+};
 
 use crate::{
     canvas::Canvas,
@@ -85,7 +88,7 @@ impl PictureRecorder {
     pub fn begin_recording(&mut self, clip_bounds: &Rect) -> impl AsMut<Canvas> {
         let ptr =
             unsafe { sk_picture_recorder_begin_recording(self.as_ptr_mut(), clip_bounds.as_ptr()) };
-        PicutreCanvas {
+        PictureCanvas {
             inner: ptr,
             phantom: PhantomData,
         }
@@ -103,13 +106,23 @@ impl PictureRecorder {
     ) -> *mut sk_drawable_t; */
 }
 #[repr(transparent)]
-struct PicutreCanvas<'a> {
+struct PictureCanvas<'a> {
     #[allow(unused)]
     inner: *mut sk_canvas_t,
     phantom: PhantomData<&'a mut Self>,
 }
-impl<'a> AsMut<Canvas> for PicutreCanvas<'a> {
+impl<'a> AsMut<Canvas> for PictureCanvas<'a> {
     fn as_mut(&mut self) -> &mut Canvas {
+        unsafe { std::mem::transmute(self) }
+    }
+}
+impl<'a> Borrow<Canvas> for PictureCanvas<'a> {
+    fn borrow(&self) -> &Canvas {
+        unsafe { std::mem::transmute(self) }
+    }
+}
+impl<'a> BorrowMut<Canvas> for PictureCanvas<'a> {
+    fn borrow_mut(&mut self) -> &mut Canvas {
         unsafe { std::mem::transmute(self) }
     }
 }

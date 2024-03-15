@@ -1,6 +1,9 @@
 use ckia_sys::*;
 
-use crate::{color::Color, shader::Shader, skia_wrapper, BlendMode, BlurStyle, Highcontrastconfig};
+use crate::{
+    color::Color, shader::Shader, skia_wrapper, BlendMode, BlurStyle, Highcontrastconfig,
+    SkiaPointer,
+};
 
 skia_wrapper!(
     refcnt,
@@ -12,35 +15,29 @@ skia_wrapper!(
 
 impl MaskFilter {
     pub fn new_blur(blur: BlurStyle, sigma: f32) -> Self {
-        let inner = unsafe { sk_maskfilter_new_blur(blur, sigma) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_maskfilter_new_blur(blur, sigma)) }
     }
     pub fn new_blur_with_flags(blur: BlurStyle, sigma: f32, respect_c_t_m: bool) -> Self {
-        let inner = unsafe { sk_maskfilter_new_blur_with_flags(blur, sigma, respect_c_t_m) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe {
+            Self::from_owned_ptr(sk_maskfilter_new_blur_with_flags(
+                blur,
+                sigma,
+                respect_c_t_m,
+            ))
+        }
     }
     pub fn new_table(table: &[u8]) -> Self {
         assert!(table.len() >= 256);
-        let inner = unsafe { sk_maskfilter_new_table(table.as_ptr()) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_maskfilter_new_table(table.as_ptr())) }
     }
     pub fn new_gamma(gamma: f32) -> Self {
-        let inner = unsafe { sk_maskfilter_new_gamma(gamma) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_maskfilter_new_gamma(gamma)) }
     }
     pub fn new_clip(min: u8, max: u8) -> Self {
-        let inner = unsafe { sk_maskfilter_new_clip(min, max) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_maskfilter_new_clip(min, max)) }
     }
     pub fn new_shader(shader: &Shader) -> Self {
-        let inner = unsafe { sk_maskfilter_new_shader(shader.inner) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_maskfilter_new_shader(shader.inner)) }
     }
 }
 
@@ -48,58 +45,42 @@ skia_wrapper!(refcnt, ColorFilter, sk_colorfilter_t, sk_colorfilter_unref);
 
 impl ColorFilter {
     pub fn new_mode(color: Color, mode: BlendMode) -> Self {
-        let inner = unsafe { sk_colorfilter_new_mode(color.0, mode) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorfilter_new_mode(color.0, mode)) }
     }
     pub fn new_lighting(mul: Color, add: Color) -> Self {
-        let inner = unsafe { sk_colorfilter_new_lighting(mul.0, add.0) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorfilter_new_lighting(mul.0, add.0)) }
     }
     pub fn new_compose(outer: &Self, inner: &Self) -> Self {
-        let inner = unsafe { sk_colorfilter_new_compose(outer.inner, inner.inner) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorfilter_new_compose(outer.inner, inner.inner)) }
     }
     pub fn new_color_matrix(array: &[f32]) -> Self {
         assert!(array.len() >= 20);
-        let inner = unsafe { sk_colorfilter_new_color_matrix(array.as_ptr()) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorfilter_new_color_matrix(array.as_ptr())) }
     }
     pub fn new_luma_color() -> Self {
-        let inner = unsafe { sk_colorfilter_new_luma_color() };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorfilter_new_luma_color()) }
     }
     pub fn new_high_contrast(config: &Highcontrastconfig) -> Self {
-        let inner = unsafe { sk_colorfilter_new_high_contrast(config.as_ptr()) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorfilter_new_high_contrast(config.as_ptr())) }
     }
 
     pub fn new_table(table: &[u8]) -> Self {
         assert!(table.len() >= 256);
-        let inner = unsafe { sk_colorfilter_new_table(table.as_ptr()) };
-        assert!(!inner.is_null());
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorfilter_new_table(table.as_ptr())) }
     }
     pub fn new_table_argb(table_a: &[u8], table_r: &[u8], table_g: &[u8], table_b: &[u8]) -> Self {
         assert!(table_a.len() >= 256);
         assert!(table_r.len() >= 256);
         assert!(table_g.len() >= 256);
         assert!(table_b.len() >= 256);
-        let inner = unsafe {
-            sk_colorfilter_new_table_argb(
+        unsafe {
+            Self::from_owned_ptr(sk_colorfilter_new_table_argb(
                 table_a.as_ptr(),
                 table_r.as_ptr(),
                 table_g.as_ptr(),
                 table_b.as_ptr(),
-            )
-        };
-        assert!(!inner.is_null());
-        Self { inner }
+            ))
+        }
     }
 }
 skia_wrapper!(refcnt, ImageFilter, sk_imagefilter_t, sk_imagefilter_unref);

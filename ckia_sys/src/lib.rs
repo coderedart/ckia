@@ -1,8 +1,11 @@
 mod bindings;
+#[cfg(feature = "mlua")]
+pub mod lua;
 pub use bindings::*;
 
 #[cfg(windows)]
 #[cfg(not(feature = "disable_embedding_icudtl_dat"))]
+#[cfg(feature = "static_linking")]
 pub fn init() {
     use std::env;
     static icudtl: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/icudtl.dat"));

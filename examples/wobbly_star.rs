@@ -20,7 +20,7 @@ fn main() {
         let second = PathEffect::discrete(10.0, 4.0, 1245);
         // sum of path effects just means drawing a path with *both* of those effects (essentially two paths).
         let mut sum = first.create_sum(&second);
-        paint.set_path_effect(&mut sum);
+        paint.set_path_effect(Some(&mut sum));
     }
     // lets create the star path once and reuse it every frame.
     let star_path = create_star_path();

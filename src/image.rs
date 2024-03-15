@@ -1,7 +1,11 @@
 use crate::{
-    bitmap::BitMap, color::ColorSpace, data::SkiaData, gr_context::GrRecordingContext,
-    pixmap::PixMap, shader::Shader, AlphaType, ColorType, Matrix, SamplingOptions, ShaderTileMode,
-    SkiaPointer,
+    bitmap::BitMap,
+    color::ColorSpace,
+    data::SkiaData,
+    gr_context::{DirectContext, GrRecordingContext},
+    pixmap::PixMap,
+    shader::Shader,
+    AlphaType, ColorType, Matrix, SamplingOptions, ShaderTileMode, SkiaPointer,
 };
 use ckia_sys::*;
 
@@ -41,7 +45,7 @@ impl Image {
     pub fn new_from_encoded(data: &SkiaData) -> Option<Self> {
         unsafe { Self::try_from_owned_ptr(sk_image_new_from_encoded(data.as_ptr())) }
     }
-    // pub fn new_from_texture(ctx: &mut GrRecordingContext, texture: &BackendTexture, origin: SurfaceOrigin, ct: ColorType, cs: &ColorSpace, )
+
     /*
     pub fn sk_image_new_from_texture(
         context: *mut gr_recording_context_t,
@@ -155,12 +159,23 @@ impl Image {
         context: *mut gr_direct_context_t,
         subset: *const sk_irect_t,
     ) -> *mut sk_image_t;
-    pub fn sk_image_make_texture_image(
-        cimage: *const sk_image_t,
-        context: *mut gr_direct_context_t,
+    */
+    pub fn make_texture_image(
+        &self,
+        ctx: &mut DirectContext,
         mipmapped: bool,
         budgeted: bool,
-    ) -> *mut sk_image_t;
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_image_make_texture_image(
+                self.as_ptr(),
+                ctx.as_ptr_mut(),
+                mipmapped,
+                budgeted,
+            ))
+        }
+    }
+    /*
     pub fn sk_image_make_non_texture_image(cimage: *const sk_image_t) -> *mut sk_image_t;
     pub fn sk_image_make_raster_image(cimage: *const sk_image_t) -> *mut sk_image_t;
     pub fn sk_image_make_with_filter_raster(

@@ -11,8 +11,11 @@ pub mod filter;
 pub mod font;
 pub mod gr_context;
 pub mod image;
+#[cfg(feature = "mlua")]
+pub mod lua;
 pub mod matrix;
 pub mod paint;
+pub mod paragraph;
 pub mod path;
 pub mod path_effect;
 pub mod picture;
@@ -121,48 +124,78 @@ macro_rules! pod_struct {
         $($vis: vis $field: ident: $fty: ty ,)+
     }) => {
         #[derive(Debug, Copy, Clone)]
-        #[repr(transparent)]
-        $svis struct $name(pub(crate) $opaque);
+        #[repr(C)]
+        $svis struct $name {
+            $($vis $field : $fty,)+
+        }
 
         impl AsRef<$opaque> for $name {
             fn as_ref(&self) -> &$opaque {
-                &self.0
+                unsafe{std::mem::transmute(self)}
             }
         }
         impl AsMut<$opaque> for $name {
             fn as_mut(&mut self) -> &mut $opaque {
-                &mut self.0
+                unsafe {std::mem::transmute(self)}
             }
         }
         impl std::borrow::Borrow<$opaque> for $name {
             fn borrow(&self) -> &$opaque {
-                &self.0
+                unsafe {std::mem::transmute(self)}
             }
         }
         impl std::borrow::BorrowMut<$opaque> for $name {
             fn borrow_mut(&mut self) -> &mut $opaque {
-                &mut self.0
+                unsafe{std::mem::transmute(self)}
             }
         }
         #[allow(unused)]
         impl $name {
             pub(crate) fn as_ptr(&self) -> *const $opaque {
-                &self.0 as _
+                self as * const Self as _
             }
             pub(crate) fn as_ptr_mut(&mut self) -> * mut $opaque {
-                &mut self.0 as _
+                self as * mut Self as _
+            }
+            pub const fn into_native(&self) -> $opaque {
+                $opaque {
+                    $( $field : self. $field,)+
+                }
             }
             $(
                 paste::paste!(
                     $vis fn [<get_ $field>](&self) -> $fty {
-                        self.0.$field
+                        self.$field
                     }
                     $vis fn [<set_ $field>](&mut self, $field: $fty) {
-                        self.0.$field = $field;
+                        self.$field = $field;
                     }
                 );
             )+
         }
+
+        paste::paste!(
+        #[cfg(test)]
+        #[test]
+        fn [<$opaque _layout_tests>]() {
+            assert_eq!(std::mem::size_of::<$name>(), std::mem::size_of::<$opaque>());
+            assert_eq!(std::mem::align_of::<$name>(), std::mem::align_of::<$opaque>());
+            // get a pointer to $name
+            const UNINIT: ::std::mem::MaybeUninit<$name> =
+            ::std::mem::MaybeUninit::uninit();
+            let ptr = UNINIT.as_ptr();
+            // get a pointer to $opaque
+            const UNINIT_OPAQUE: ::std::mem::MaybeUninit<$opaque> =
+            ::std::mem::MaybeUninit::uninit();
+            let opaque_ptr = UNINIT_OPAQUE.as_ptr();
+            // for each field, assert that the field offset (by subtracting field's address from struct's address) for all fields are same in both structs
+            $(
+                assert_eq!(
+                    unsafe { ::std::ptr::addr_of!((*ptr).$field) as usize - ptr as usize },
+                    unsafe { ::std::ptr::addr_of!((*opaque_ptr).$field) as usize - ptr as usize }
+                );
+            )+
+        });
     };
 }
 #[allow(unused)]

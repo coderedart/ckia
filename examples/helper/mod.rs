@@ -16,6 +16,7 @@ use ckia::{
 };
 use glfw::{Context, Glfw, GlfwReceiver, PWindow, WindowEvent};
 use glow::HasContext;
+use mlua::Lua;
 const FIRA_CODE_REGULAR_BYTES: &[u8] = include_bytes!("fira_code_regular.ttf");
 
 extern "C" fn get_proc_addr(ctx: *mut c_void, sym: *const i8) -> Option<unsafe extern "C" fn()> {
@@ -63,9 +64,8 @@ fn create_window(size: [u32; 2]) -> (Glfw, PWindow, GlfwReceiver<(f64, WindowEve
 }
 fn create_gl_interface_and_direct_context(window: &mut PWindow) -> (GlInterface, DirectContext) {
     println!("assembling gl interface");
-    let interface = unsafe {
-        GlInterface::assemble_gl_interface(window as *mut PWindow as _, Some(get_proc_addr))
-    };
+    let interface =
+        unsafe { GlInterface::new_load_with(|proc_name| window.get_proc_address(proc_name)) };
     dbg!(interface.validate());
     println!("making direct context");
     let dctx = DirectContext::make_gl(&interface);
@@ -102,6 +102,8 @@ fn create_render_target_and_surface(
     (render_target, surface)
 }
 pub struct HelperContext {
+    #[cfg(feature = "mlua")]
+    pub lua: Lua,
     pub events: Vec<WindowEvent>,
     pub fontmgr: FontMgr,
     pub fira_typface: Typeface,
@@ -132,8 +134,16 @@ impl HelperContext {
         let mut fontmgr = FontMgr::create_custom_dir(".").unwrap();
         let mut fira_data = SkiaData::new_with_copy(FIRA_CODE_REGULAR_BYTES);
         let mut fira_tf = fontmgr.create_from_data(&mut fira_data, 0).unwrap();
-        let fira_font = Font::new_with_values(&mut fira_tf, 64.0, 1.0, 0.0).unwrap();
-        let huge_fira_font = Font::new_with_values(&mut fira_tf, 128.0, 2.0, 0.0).unwrap();
+        let fira_font = Font::new_with_values(&mut fira_tf, 16.0 * sx, 1.0, 0.0).unwrap();
+        let huge_fira_font = Font::new_with_values(&mut fira_tf, 48.0 * sx, 1.0, 0.0).unwrap();
+        #[cfg(feature = "mlua")]
+        let lua = {
+            let lua = Lua::new();
+            let ckia_table = ckia::lua::add_bindings(&lua).unwrap();
+            lua.globals().set("ckia", ckia_table);
+            lua
+        };
+
         Self {
             fontmgr,
             fira_typface: fira_tf,
@@ -149,6 +159,8 @@ impl HelperContext {
             glfw_context,
             scale: [sx, sy],
             events: vec![],
+            #[cfg(feature = "mlua")]
+            lua,
         }
     }
     pub fn enter_event_loop(mut self, mut painting_fn: impl FnMut(&mut Self)) {
@@ -195,7 +207,7 @@ impl HelperContext {
                 .get_canvas()
                 .as_mut()
                 .restore_to_count(save_count);
-            self.gl_direct_context.flush_and_submit(true);
+            self.gl_direct_context.flush_and_submit(false);
             self.window.swap_buffers();
         }
     }

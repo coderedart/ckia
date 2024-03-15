@@ -6,28 +6,41 @@ use crate::{Color4f, ColorspaceTransferFn, ColorspaceXyz, SkiaPointer};
 
 impl Default for Color4f {
     fn default() -> Self {
-        Self(sk_color4f_t {
+        Self {
             fR: 0.0,
             fG: 0.0,
             fB: 0.0,
             fA: 0.0,
-        })
+        }
     }
 }
 impl From<Color> for Color4f {
     fn from(value: Color) -> Self {
         let mut c = Self::default();
-        unsafe {
-            sk_color4f_from_color(value.0, &mut c.0 as _);
-        }
+        let ca = value.0.to_ne_bytes().map(|c| c as f32 / 255.0);
+        // sk_color4f_from_color(color, color4f) -- there's something wrong with this function. It confuses ARGB as BGRA.
+        c.fA = ca[0];
+        c.fR = ca[1];
+        c.fG = ca[2];
+        c.fB = ca[3];
         c
+    }
+}
+impl From<Color4f> for Color {
+    fn from(value: Color4f) -> Self {
+        Self::new(
+            (value.fA * 255.0).clamp(0.0, 255.0) as u8,
+            (value.fR * 255.0).clamp(0.0, 255.0) as u8,
+            (value.fG * 255.0).clamp(0.0, 255.0) as u8,
+            (value.fB * 255.0).clamp(0.0, 255.0) as u8,
+        )
     }
 }
 /// color type represented by u32 made up of ARGB components (1 byte each) in that particular order.
 /// unmultiplied
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Color(pub(crate) sk_color_t);
+pub struct Color(pub sk_color_t);
 #[derive(Debug, Clone, Copy, Default)]
 
 /// Premultiplied color represented by u32. The color components order is based on the [ColorType] in use.
@@ -85,6 +98,13 @@ impl Color {
         color |= b as u32;
         Self(color)
     }
+    pub const fn from_u32(color: u32) -> Self {
+        let bytes = color.to_ne_bytes();
+        Self::new(bytes[0], bytes[1], bytes[2], bytes[3])
+    }
+    pub const fn as_u32(&self) -> u32 {
+        self.0
+    }
 }
 impl From<Color> for PMColor {
     fn from(value: Color) -> Self {
@@ -120,7 +140,7 @@ impl PMColor {
 
 impl Default for ColorspaceXyz {
     fn default() -> Self {
-        Self(sk_colorspace_xyz_t {
+        Self {
             fM00: 0.0,
             fM01: 0.0,
             fM02: 0.0,
@@ -130,28 +150,28 @@ impl Default for ColorspaceXyz {
             fM20: 0.0,
             fM21: 0.0,
             fM22: 0.0,
-        })
+        }
     }
 }
 impl ColorspaceXyz {
     pub fn set_srgb(&mut self) {
-        unsafe { sk_colorspace_xyz_named_srgb(&mut self.0 as _) }
+        unsafe { sk_colorspace_xyz_named_srgb(self.as_ptr_mut()) }
     }
     pub fn set_adobe_rgb(&mut self) {
-        unsafe { sk_colorspace_xyz_named_adobe_rgb(&mut self.0 as _) }
+        unsafe { sk_colorspace_xyz_named_adobe_rgb(self.as_ptr_mut()) }
     }
     pub fn set_display_p3(&mut self) {
-        unsafe { sk_colorspace_xyz_named_display_p3(&mut self.0 as _) }
+        unsafe { sk_colorspace_xyz_named_display_p3(self.as_ptr_mut()) }
     }
     pub fn set_rec2020(&mut self) {
-        unsafe { sk_colorspace_xyz_named_rec2020(&mut self.0 as _) }
+        unsafe { sk_colorspace_xyz_named_rec2020(self.as_ptr_mut()) }
     }
     pub fn set_xyz(&mut self) {
-        unsafe { sk_colorspace_xyz_named_xyz(&mut self.0 as _) }
+        unsafe { sk_colorspace_xyz_named_xyz(self.as_ptr_mut()) }
     }
     pub fn invert(&self) -> Option<Self> {
         let mut dst = Self::default();
-        unsafe { sk_colorspace_xyz_invert(&self.0 as _, &mut dst.0 as _).then_some(dst) }
+        unsafe { sk_colorspace_xyz_invert(self.as_ptr(), dst.as_ptr_mut()).then_some(dst) }
     }
 }
 
@@ -160,7 +180,7 @@ impl Add for ColorspaceXyz {
     fn add(self, rhs: Self) -> Self::Output {
         let mut result = Self::default();
         unsafe {
-            sk_colorspace_xyz_concat(&self.0 as _, &rhs.0 as _, &mut result.0 as _);
+            sk_colorspace_xyz_concat(self.as_ptr(), rhs.as_ptr(), result.as_ptr_mut());
         }
         result
     }
@@ -306,7 +326,7 @@ impl<'a> ICCProfile<'a> {
     pub fn get_to_xyzd50(&self) -> Option<ColorspaceXyz> {
         let mut space = ColorspaceXyz::default();
         unsafe {
-            sk_colorspace_icc_profile_get_to_xyzd50(self.inner, &mut space.0 as _).then_some(space)
+            sk_colorspace_icc_profile_get_to_xyzd50(self.inner, space.as_ptr_mut()).then_some(space)
         }
     }
 }

@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::ffi::{c_char, c_void, CStr};
 
 use crate::SkiaPointer;
 use ckia_sys::*;
@@ -152,26 +152,35 @@ impl GlInterface {
             Self { inner: inner as _ }
         }
     }
-    pub unsafe fn assemble_interface(ctx: *mut std::ffi::c_void, get: gr_gl_get_proc) -> Self {
-        let inner = gr_glinterface_assemble_interface(ctx, get);
+    pub unsafe fn new_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
+        let inner = gr_glinterface_assemble_interface(
+            &mut loader_fn as *mut _ as *mut c_void,
+            Some(gl_get_proc_fn_wrapper::<F>),
+        );
         assert!(!inner.is_null());
         Self { inner: inner as _ }
     }
-    pub unsafe fn assemble_gl_interface(ctx: *mut std::ffi::c_void, get: gr_gl_get_proc) -> Self {
-        let inner = gr_glinterface_assemble_gl_interface(ctx, get);
+    pub unsafe fn new_gl_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
+        let inner = gr_glinterface_assemble_gl_interface(
+            &mut loader_fn as *mut _ as *mut c_void,
+            Some(gl_get_proc_fn_wrapper::<F>),
+        );
         assert!(!inner.is_null());
         Self { inner: inner as _ }
     }
-    pub unsafe fn assemble_gles_interface(ctx: *mut std::ffi::c_void, get: gr_gl_get_proc) -> Self {
-        let inner = gr_glinterface_assemble_gles_interface(ctx, get);
+    pub unsafe fn new_gles_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
+        let inner = gr_glinterface_assemble_gles_interface(
+            &mut loader_fn as *mut _ as *mut c_void,
+            Some(gl_get_proc_fn_wrapper::<F>),
+        );
         assert!(!inner.is_null());
         Self { inner: inner as _ }
     }
-    pub unsafe fn assemble_webgl_interface(
-        ctx: *mut std::ffi::c_void,
-        get: gr_gl_get_proc,
-    ) -> Self {
-        let inner = gr_glinterface_assemble_webgl_interface(ctx, get);
+    pub unsafe fn new_webgl_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
+        let inner = gr_glinterface_assemble_webgl_interface(
+            &mut loader_fn as *mut _ as *mut c_void,
+            Some(gl_get_proc_fn_wrapper::<F>),
+        );
         assert!(!inner.is_null());
         Self { inner: inner as _ }
     }
@@ -180,6 +189,28 @@ impl GlInterface {
     }
     pub fn has_extension(&self, extension: &CStr) -> bool {
         unsafe { gr_glinterface_has_extension(self.as_ptr(), extension.as_ptr()) }
+    }
+}
+// stolen from skia-safe
+unsafe extern "C" fn gl_get_proc_fn_wrapper<F>(
+    ctx: *mut c_void,
+    name: *const c_char,
+) -> Option<unsafe extern "C" fn()>
+where
+    F: FnMut(&str) -> *const c_void,
+{
+    let fn_name = std::ffi::CStr::from_ptr(name)
+        .to_str()
+        .expect("failed to get CStr out of gl proc name");
+    if fn_name == "eglGetCurrentDisplay" {
+        eprintln!("skipping {fn_name} because it causes segfault in certain situations");
+        return None;
+    }
+    let fn_ptr = (*(ctx as *mut F))(fn_name);
+    if fn_ptr.is_null() {
+        None
+    } else {
+        Some(std::mem::transmute(fn_ptr))
     }
 }
 

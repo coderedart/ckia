@@ -60,17 +60,17 @@ impl Typeface {
     /// otherwise, the number of bytes written to data, which must be atleast the size of `length`
     pub fn get_table_data(&self, tag: u32, offset: usize, length: usize, data: &mut [u8]) -> usize {
         assert!(length <= data.len());
-        unsafe { sk_typeface_get_table_data(self.as_ptr(), tag, offset, length, data.as_mut_ptr() as _) }
+        unsafe {
+            sk_typeface_get_table_data(self.as_ptr(), tag, offset, length, data.as_mut_ptr() as _)
+        }
     }
     pub fn copy_table_data(&self, tag: u32) -> Option<SkiaData> {
         unsafe { SkiaData::try_from_owned_ptr(sk_typeface_copy_table_data(self.as_ptr(), tag)) }
     }
     pub fn get_units_per_em(&self) -> i32 {
-        unsafe {
-            sk_typeface_get_units_per_em(self.as_ptr())
-        }
+        unsafe { sk_typeface_get_units_per_em(self.as_ptr()) }
     }
-    
+
     /*
     pub fn sk_typeface_get_kerning_pair_adjustments(
         typeface: *const sk_typeface_t,

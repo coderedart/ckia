@@ -53,7 +53,7 @@ impl BitMap {
     }
     pub fn erase_rect(&mut self, color: Color, rect: &mut IRect) {
         unsafe {
-            sk_bitmap_erase_rect(self.inner, color.0, &mut rect.0 as _);
+            sk_bitmap_erase_rect(self.inner, color.0, rect.as_ptr_mut());
         }
     }
     pub fn get_addr_8(&mut self, x: i32, y: i32) -> Option<&mut u8> {

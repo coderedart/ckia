@@ -218,6 +218,37 @@ impl Font {
             )
         }
     }
+    ///
+    /// # Safety
+    /// If you pass in None, then we return the size of vec needed.
+    /// If you pass in Some, then we will fill as much as we can and still return the vec size needed.
+    /// So, it is upto the user to actually ensure that the returned usize is less than or equal to vec size.
+    /// So that they are not missing any textboxes
+    pub unsafe fn get_intercepts(
+        &mut self,
+        glyphs: &[u16],
+        pos: &mut [Point],
+        top: f32,
+        bottom: f32,
+        paint: Option<&Paint>,
+        vec: Option<&mut Vec<f32>>,
+    ) -> usize {
+        let len = vec.as_ref().map(|v| v.len()).unwrap_or_default();
+        unsafe {
+            sk_font_get_intercepts(
+                self.as_ptr_mut(),
+                glyphs.as_ptr(),
+                glyphs.len() as _,
+                pos.as_ptr() as *const sk_point_t,
+                top,
+                bottom,
+                paint.map(Paint::as_ptr).unwrap_or(null()),
+                vec.map(|v| v as *mut Vec<f32> as *mut f32)
+                    .unwrap_or(std::ptr::null_mut()),
+                len,
+            )
+        }
+    }
     /// If the glyph can be represented by a path, we will set path to the glyph outline and return true.
     /// If the glyph is a bitmap, then we return false.
     pub fn get_path(&self, glyph: u16, path: &mut SkiaPath) -> bool {
