@@ -118,14 +118,7 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
     table.set_readonly(true);
     Ok(table)
 }
-const CKIA_LUA_SETUP: &str = r###"
-local ckia = ...
-local rect = {}
-rect.new = function (x: number, y: number, width: number, height: number)
-    return vector(x, y, x + width, y - height)
-end
-ckia.rect = rect
-"###;
+const CKIA_LUA_SETUP: &str = include_str!("ckia_setup.luau");
 impl UserData for Image {
     fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
         fields.add_field_method_get("width", |_, this| Ok(this.get_width()));

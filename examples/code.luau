@@ -1,4 +1,4 @@
-
+--!strict
 -- lets create a paint struct that we can use
 local red_paint = ckia.new_paint()
 -- antialias makes things smoother
@@ -18,7 +18,7 @@ local blur_filter = ckia.new_blur_filter(0, 1.4)
 red_paint:set_shader(gradient_shader)
 red_paint:set_maskfilter(blur_filter)
 -- This function will be called by the script example of rust and we will get canvas as an argument (it will be destroyed by host, so DO NOT STORE IT)
-function tick(canvas) 
+function tick(canvas: Canvas) 
     -- lets get the high precision time in seconds
     local t = os.clock()
     -- lets make the radius a function of time -> sin -> absolute (to avoid negative radius)
@@ -28,5 +28,7 @@ function tick(canvas)
     -- draw the circle with center at 150,150. and radius from above. use the paint struct with gradient shader and blur filter.
     -- This will have a blurred gardient filled circle growing and shrinking in uniform intervals.
     -- This is how animations are made.
-    canvas:draw_circle(vector(150.0, 150.0, radius, 0.0), red_paint)
+    canvas:draw_circle(ckia.circle.new(150.0, 150.0, radius), red_paint)
 end
+
+return tick

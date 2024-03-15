@@ -3,6 +3,17 @@ Ckia is a 2D vector graphics library based on `Skia` with `SkiaSharp`'s "C" bind
 
 **NOTE**: Please also read [ckia_sys README](./ckia_sys/README.md) which explains build requirements and customization. 
 
+### Luau (mlua) bindings
+For Luau type definitions, 
+1. please install `luau-lsp` extension
+2. copy the `types.d.luau` file to your project (preferably at workspace root).
+3. add the following snippet to your vscode config with the path to your copied type definitions file
+```json
+"luau-lsp.types.definitionFiles": [
+  "types.d.luau"
+]
+```
+
 ### Documentation
 Skia's documentation is split over multiple places.
 
