@@ -1,8 +1,8 @@
-use ckia_sys::*;
+use crate::bindings::*;
 
 use crate::{
-    color::Color, shader::Shader, skia_wrapper, BlendMode, BlurStyle, Highcontrastconfig,
-    SkiaPointer,
+    color::Color, shader::Shader, skia_wrapper, BlendMode, BlurStyle, Highcontrastconfig, Rect,
+    ShaderTileMode, SkiaOptPtr,
 };
 
 skia_wrapper!(
@@ -85,41 +85,79 @@ impl ColorFilter {
 }
 skia_wrapper!(refcnt, ImageFilter, sk_imagefilter_t, sk_imagefilter_unref);
 impl ImageFilter {
-    /*
-    pub fn sk_imagefilter_new_alpha_threshold(
-        region: *const sk_region_t,
-        innerThreshold: f32,
-        outerThreshold: f32,
-        input: *const sk_imagefilter_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_arithmetic(
+    pub fn new_arithmetic(
         k1: f32,
         k2: f32,
         k3: f32,
         k4: f32,
-        enforcePMColor: bool,
-        background: *const sk_imagefilter_t,
-        foreground: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_blend(
-        mode: sk_blendmode_t,
-        background: *const sk_imagefilter_t,
-        foreground: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_blur(
-        sigmaX: f32,
-        sigmaY: f32,
-        tileMode: sk_shader_tilemode_t,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_color_filter(
-        cf: *mut sk_colorfilter_t,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
+        enforce_pm_color: bool,
+        background: Option<&Self>,
+        foreground: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_arithmetic(
+                k1,
+                k2,
+                k3,
+                k4,
+                enforce_pm_color,
+                background.or_null(),
+                foreground.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_blend(
+        mode: BlendMode,
+        background: Option<&Self>,
+        foreground: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_blend(
+                mode,
+                background.or_null(),
+                foreground.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_blur(
+        sigma_x: f32,
+        sigma_y: f32,
+        tile_mode: ShaderTileMode,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_blur(
+                sigma_x,
+                sigma_y,
+                tile_mode,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_color_filter(
+        sigma_x: f32,
+        sigma_y: f32,
+        tile_mode: ShaderTileMode,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_blur(
+                sigma_x,
+                sigma_y,
+                tile_mode,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    /*
     pub fn sk_imagefilter_new_compose(
         outer: *const sk_imagefilter_t,
         inner: *const sk_imagefilter_t,

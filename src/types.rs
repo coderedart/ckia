@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{color::ColorSpace, SkiaPointer};
+use crate::color::ColorSpace;
 
 pub type ColorType = sk_colortype_t;
 pub type AlphaType = sk_alphatype_t;

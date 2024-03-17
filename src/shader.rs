@@ -1,8 +1,8 @@
-use ckia_sys::*;
+use crate::{bindings::*, SkiaOptPtr};
 
 use crate::{
     color::ColorSpace, filter::ColorFilter, skia_wrapper, BlendMode, Color, Color4f, Matrix, Point,
-    ShaderTileMode, SkiaPointer,
+    ShaderTileMode,
 };
 
 skia_wrapper!(refcnt, Shader, sk_shader_t, sk_shader_unref, sk_shader_ref);
@@ -34,7 +34,7 @@ impl Shader {
         colors: &[Color],
         color_positions: Option<&[f32]>,
         tile_mode: ShaderTileMode,
-        matrix: Option<Matrix>,
+        matrix: Option<&Matrix>,
     ) -> Self {
         if let Some(color_positions) = color_positions {
             assert_eq!(colors.len(), color_positions.len());
@@ -48,7 +48,7 @@ impl Shader {
                     .unwrap_or(std::ptr::null()),
                 colors.len() as _,
                 tile_mode,
-                matrix.map(|m| m.as_ptr()).unwrap_or(std::ptr::null()),
+                matrix.or_null(),
             ))
         }
     }
@@ -58,7 +58,7 @@ impl Shader {
         colors: &[Color],
         color_positions: Option<&[f32]>,
         tile_mode: ShaderTileMode,
-        matrix: Option<Matrix>,
+        matrix: Option<&Matrix>,
     ) -> Self {
         if let Some(color_positions) = color_positions {
             assert_eq!(colors.len(), color_positions.len());
@@ -73,7 +73,7 @@ impl Shader {
                     .unwrap_or(std::ptr::null()),
                 colors.len() as _,
                 tile_mode,
-                matrix.map(|m| m.as_ptr()).unwrap_or(std::ptr::null()),
+                matrix.or_null(),
             ))
         }
     }

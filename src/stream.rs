@@ -1,7 +1,6 @@
 use std::{ffi::CStr, marker::PhantomData, mem::transmute};
 
-use crate::SkiaPointer;
-use ckia_sys::*;
+use crate::bindings::*;
 
 use crate::data::SkiaData;
 

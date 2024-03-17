@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{path::SkiaPath, IRect, RegionOp, SkiaPointer};
+use crate::{path::SkiaPath, IRect, RegionOp};
 
 crate::skia_wrapper!(unique, Region, sk_region_t, sk_region_delete);
 impl Default for Region {

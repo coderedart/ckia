@@ -1,8 +1,8 @@
 use std::mem::transmute;
 
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{color::Color, pixmap::PixMap, skia_wrapper, IRect, ImageInfo, SkiaPointer};
+use crate::{color::Color, pixmap::PixMap, skia_wrapper, IRect, ImageInfo};
 
 skia_wrapper!(unique, BitMap, sk_bitmap_t, sk_bitmap_destructor);
 

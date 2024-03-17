@@ -1,7 +1,6 @@
-use crate::SkiaPointer;
 use std::ffi::CStr;
 
-use ckia_sys::*;
+use crate::bindings::*;
 
 crate::skia_wrapper!(unique, SkiaString, sk_string_t, sk_string_destructor);
 

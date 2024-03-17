@@ -3,14 +3,14 @@ use std::{
     marker::PhantomData,
 };
 
+use crate::bindings::*;
 use crate::{
     canvas::Canvas,
     data::SkiaData,
     shader::Shader,
     stream::{Stream, WStream},
-    FilterMode, Matrix, Rect, ShaderTileMode, SkiaPointer,
+    FilterMode, Matrix, Rect, ShaderTileMode,
 };
-use ckia_sys::*;
 crate::skia_wrapper!(
     refcnt,
     Picture,

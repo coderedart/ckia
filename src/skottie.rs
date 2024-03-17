@@ -1,10 +1,10 @@
 use std::ffi::CStr;
 
+use crate::bindings::*;
 use crate::{
     canvas::Canvas, sksg::SkSgInvalidationController, stream::Stream, string::SkiaString, Rect,
-    Size, SkiaPointer, SkottieAnimationRenderFlags,
+    Size, SkottieAnimationRenderFlags,
 };
-use ckia_sys::*;
 crate::skia_wrapper!(
     nvrefcnt,
     SkottieAnimation,

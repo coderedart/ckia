@@ -1,6 +1,6 @@
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{Matrix, Rect, SkiaPointer};
+use crate::{Matrix, Rect};
 
 crate::skia_wrapper!(
     unique,

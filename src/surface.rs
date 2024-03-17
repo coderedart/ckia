@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
+use crate::bindings::*;
 use crate::{
     canvas::Canvas,
     color::ColorSpace,
     gr_context::{BackendRenderTarget, BackendTexture, GrRecordingContext},
     paint::Paint,
-    ColorType, ImageInfo, PixelGeometry, SkiaPointer, SurfaceOrigin,
+    ColorType, ImageInfo, PixelGeometry, SurfaceOrigin,
 };
-use ckia_sys::*;
 crate::skia_wrapper!(refcnt, Surface, sk_surface_t, sk_surface_unref);
 
 impl Surface {

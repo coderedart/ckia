@@ -1,6 +1,6 @@
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{Rect, SkiaPointer};
+use crate::Rect;
 
 crate::skia_wrapper!(
     nvrefcnt,

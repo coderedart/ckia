@@ -1,6 +1,6 @@
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{Matrix, RRectCorner, RRectType, Rect, SkiaPointer, Vector};
+use crate::{Matrix, RRectCorner, RRectType, Rect, Vector};
 
 crate::skia_wrapper!(unique, RRect, sk_rrect_t, sk_rrect_delete);
 impl Clone for RRect {

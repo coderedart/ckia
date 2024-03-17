@@ -1,37 +1,40 @@
 [package]
 name = "ckia"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-repository.workspace = true
-homepage.workspace = true
+version = "122.2.0"
+edition = "2021"
+rust-version = "1.74"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/coderedart/ckia.git"
+repository = "https://github.com/coderedart/ckia.git"
 documentation = "https://docs.rs/ckia"
 
 [features]
 default = ["static_linking", "mlua"]
-mlua = ["dep:mlua", "ckia_sys/mlua"]
-no_pre_built_libs = ["ckia_sys/disable_download_pre_built_skia_libs"]
-static_linking = ["ckia_sys/static_linking"]
+mlua = ["dep:mlua"]
+# by default, we will try to download pre-built libs from github
+# but this feature will disable that
+no_pre_built_libs = []
+# by default, if we fail to download pre-build libs (or above feature is enabled< we build from src.
+# This feature will disable building from src
+disable_build_from_src = []
+
+disable_embedding_icudtl_dat = []
+# This tells skia to use dynamic linking. download shared lib files or build from src. 
+# If this is disabled, then we will use static linking which is what the majority want in the defualt case. 
+component_build = []
+# when you just care about structs and fn signatures, you can disable this feature. we won't build or link anything. 
+# this is really useful when you are building wasm plugins, and the host will provide the actual bindings when instantiating your wasm plugin
+static_linking = []
+# by default, we will place build artifact downloads in user cache dir, to avoid redownloading after cargo clean
+# you can use this to disable that behavior
+disable_caching_downloads_in_user_cache = []
+
 
 [dependencies]
-ckia_sys = { version = "*", path = "ckia_sys" }
 paste = { version = "*" }
-mlua = { workspace = true, optional = true }
-
+mlua = { version = "0.9", features = ["luau-vector4"], optional = true }
+heck = { version = "*" }
 [dev-dependencies]
 glfw = { version = "*" }
 glow = { version = "*" }
-mlua = { workspace = true }
-[workspace]
-members = ["ckia_sys"]
-resolver = "2"
-package.version = "122.2.0"
-package.edition = "2021"
-package.rust-version = "1.74"
-package.license = "MIT OR Apache-2.0"
-package.homepage = "https://github.com/coderedart/ckia.git"
-package.repository = "https://github.com/coderedart/ckia.git"
-
-[workspace.dependencies]
 mlua = { version = "0.9", features = ["luau-vector4"] }

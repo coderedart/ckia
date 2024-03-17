@@ -1,6 +1,4 @@
-use std::ptr::null_mut;
-
-use ckia_sys::*;
+use crate::bindings::*;
 
 use crate::{
     color::ColorSpace,
@@ -8,7 +6,7 @@ use crate::{
     path::SkiaPath,
     path_effect::PathEffect,
     shader::Shader,
-    BlendMode, Color, Color4f, Matrix, PaintStyle, Rect, SkiaPointer, StrokeCap, StrokeJoin,
+    BlendMode, Color, Color4f, Matrix, PaintStyle, Rect, SkiaOptPtrMut, StrokeCap, StrokeJoin,
 };
 
 crate::skia_wrapper!(unique, Paint, sk_paint_t, sk_paint_delete);
@@ -88,20 +86,12 @@ impl Paint {
     }
     pub fn set_shader(&mut self, shader: Option<&mut Shader>) {
         unsafe {
-            sk_paint_set_shader(
-                self.inner,
-                shader
-                    .map(|s| s.as_ptr_mut())
-                    .unwrap_or(std::ptr::null_mut()),
-            );
+            sk_paint_set_shader(self.inner, shader.or_null_mut());
         }
     }
     pub fn set_maskfilter(&mut self, filter: Option<&mut MaskFilter>) {
         unsafe {
-            sk_paint_set_maskfilter(
-                self.inner,
-                filter.map(|f| f.as_ptr_mut()).unwrap_or(null_mut()),
-            );
+            sk_paint_set_maskfilter(self.inner, filter.or_null_mut());
         }
     }
     pub fn set_blendmode(&mut self, mode: BlendMode) {
@@ -124,18 +114,13 @@ impl Paint {
         unsafe { MaskFilter::try_from_owned_ptr(sk_paint_get_maskfilter(self.inner)) }
     }
     pub fn set_colorfilter(&mut self, filter: Option<&mut ColorFilter>) {
-        unsafe {
-            sk_paint_set_colorfilter(
-                self.inner,
-                filter.map(|f| f.as_ptr_mut()).unwrap_or(null_mut()),
-            )
-        }
+        unsafe { sk_paint_set_colorfilter(self.inner, filter.or_null_mut()) }
     }
     pub fn get_colorfilter(&mut self) -> Option<ColorFilter> {
         unsafe { ColorFilter::try_from_owned_ptr(sk_paint_get_colorfilter(self.inner)) }
     }
-    pub fn set_image_filter(&mut self, filter: &ImageFilter) {
-        unsafe { sk_paint_set_imagefilter(self.inner, filter.inner) }
+    pub fn set_image_filter(&mut self, filter: Option<&mut ImageFilter>) {
+        unsafe { sk_paint_set_imagefilter(self.inner, filter.or_null_mut()) }
     }
     pub fn get_imagefilter(&self) -> Option<ImageFilter> {
         unsafe { ImageFilter::try_from_owned_ptr(sk_paint_get_imagefilter(self.inner)) }
@@ -147,12 +132,7 @@ impl Paint {
         unsafe { PathEffect::try_from_owned_ptr(sk_paint_get_path_effect(self.inner)) }
     }
     pub fn set_path_effect(&mut self, path_effect: Option<&mut PathEffect>) {
-        unsafe {
-            sk_paint_set_path_effect(
-                self.inner,
-                path_effect.map(|f| f.as_ptr_mut()).unwrap_or(null_mut()),
-            )
-        }
+        unsafe { sk_paint_set_path_effect(self.inner, path_effect.or_null_mut()) }
     }
     /// if success, dst has the result and return value is true. if not, then dst remains untouched and we return false.
     #[must_use]

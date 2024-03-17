@@ -1,10 +1,10 @@
 use std::ptr::{null, null_mut};
 
+use crate::bindings::*;
 use crate::{
     paint::Paint, path::SkiaPath, typeface::Typeface, FontEdging, FontHinting, FontMetrics, Point,
-    Rect, SkiaPointer, TextEncoding,
+    Rect, TextEncoding,
 };
-use ckia_sys::*;
 
 crate::skia_wrapper!(unique, Font, sk_font_t, sk_font_delete);
 

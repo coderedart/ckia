@@ -1,8 +1,8 @@
 use std::{marker::PhantomData, ops::Add};
 
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{Color4f, ColorspaceTransferFn, ColorspaceXyz, SkiaPointer};
+use crate::{Color4f, ColorspaceTransferFn, ColorspaceXyz};
 
 impl Default for Color4f {
     fn default() -> Self {
@@ -197,24 +197,21 @@ crate::skia_wrapper!(
 
 impl ColorSpace {
     pub fn new_srgb() -> Self {
-        let inner = unsafe { sk_colorspace_new_srgb() };
-        assert!(!inner.is_null(), "colospace new returned nullptr");
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorspace_new_srgb()) }
     }
     pub fn new_srgb_linear() -> Self {
-        let inner = unsafe { sk_colorspace_new_srgb_linear() };
-        assert!(!inner.is_null(), "colospace new returned nullptr");
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorspace_new_srgb_linear()) }
     }
     pub fn new_rgb(transfer_fn: &ColorspaceTransferFn, to_xyzd50: &ColorspaceXyz) -> Self {
-        let inner = unsafe { sk_colorspace_new_rgb(transfer_fn.as_ptr(), to_xyzd50.as_ptr()) };
-        assert!(!inner.is_null(), "colospace new returned nullptr");
-        Self { inner }
+        unsafe {
+            Self::from_owned_ptr(sk_colorspace_new_rgb(
+                transfer_fn.as_ptr(),
+                to_xyzd50.as_ptr(),
+            ))
+        }
     }
     pub fn new_icc(profile: &ICCProfile) -> Self {
-        let inner = unsafe { sk_colorspace_new_icc(profile.inner) };
-        assert!(!inner.is_null(), "colospace new returned nullptr");
-        Self { inner }
+        unsafe { Self::from_owned_ptr(sk_colorspace_new_icc(profile.inner)) }
     }
     pub fn to_profile(&self) -> ICCProfile<'static> {
         let p = ICCProfile::new();

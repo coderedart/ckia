@@ -1,10 +1,10 @@
 use std::{ffi::CStr, marker::PhantomData};
 
-use ckia_sys::*;
+use crate::bindings::*;
 
 use crate::{
     rrect::RRect, string::SkiaString, Matrix, PathAddMode, PathArcSize, PathDirection,
-    PathFillType, PathMeasureMatrixflags, PathOp, PathVerb, Point, Rect, SkiaPointer, Vector,
+    PathFillType, PathMeasureMatrixflags, PathOp, PathVerb, Point, Rect, Vector,
 };
 
 crate::skia_wrapper!(unique, SkiaPath, sk_path_t, sk_path_delete);

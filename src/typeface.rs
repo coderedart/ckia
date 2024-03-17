@@ -1,11 +1,10 @@
 use std::ffi::CStr;
 use std::ffi::CString;
 
+use crate::bindings::*;
 use crate::data::SkiaData;
 use crate::string::SkiaString;
 use crate::FontStyleSlant;
-use crate::SkiaPointer;
-use ckia_sys::*;
 
 crate::skia_wrapper!(refcnt, Typeface, sk_typeface_t, sk_typeface_unref);
 

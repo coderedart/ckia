@@ -1,7 +1,6 @@
 use std::ffi::{c_char, c_void, CStr};
 
-use crate::SkiaPointer;
-use ckia_sys::*;
+use crate::bindings::*;
 
 use crate::*;
 
@@ -146,43 +145,31 @@ impl DirectContext {
 crate::skia_wrapper!(shared, GlInterface, gr_glinterface_t, gr_glinterface_unref);
 impl GlInterface {
     pub fn create_native_interface() -> Self {
-        unsafe {
-            let inner = gr_glinterface_create_native_interface();
-            assert!(!inner.is_null());
-            Self { inner: inner as _ }
-        }
+        unsafe { Self::from_owned_ptr(gr_glinterface_create_native_interface() as _) }
     }
     pub unsafe fn new_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
-        let inner = gr_glinterface_assemble_interface(
+        Self::from_owned_ptr(gr_glinterface_assemble_interface(
             &mut loader_fn as *mut _ as *mut c_void,
             Some(gl_get_proc_fn_wrapper::<F>),
-        );
-        assert!(!inner.is_null());
-        Self { inner: inner as _ }
+        ) as _)
     }
     pub unsafe fn new_gl_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
-        let inner = gr_glinterface_assemble_gl_interface(
+        Self::from_owned_ptr(gr_glinterface_assemble_gl_interface(
             &mut loader_fn as *mut _ as *mut c_void,
             Some(gl_get_proc_fn_wrapper::<F>),
-        );
-        assert!(!inner.is_null());
-        Self { inner: inner as _ }
+        ) as _)
     }
     pub unsafe fn new_gles_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
-        let inner = gr_glinterface_assemble_gles_interface(
+        Self::from_owned_ptr(gr_glinterface_assemble_gles_interface(
             &mut loader_fn as *mut _ as *mut c_void,
             Some(gl_get_proc_fn_wrapper::<F>),
-        );
-        assert!(!inner.is_null());
-        Self { inner: inner as _ }
+        ) as _)
     }
     pub unsafe fn new_webgl_load_with<F: FnMut(&str) -> *const c_void>(mut loader_fn: F) -> Self {
-        let inner = gr_glinterface_assemble_webgl_interface(
+        Self::from_owned_ptr(gr_glinterface_assemble_webgl_interface(
             &mut loader_fn as *mut _ as *mut c_void,
             Some(gl_get_proc_fn_wrapper::<F>),
-        );
-        assert!(!inner.is_null());
-        Self { inner: inner as _ }
+        ) as _)
     }
     pub fn validate(&self) -> bool {
         unsafe { gr_glinterface_validate(self.as_ptr()) }

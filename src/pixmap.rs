@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem::transmute};
 
-use ckia_sys::*;
+use crate::bindings::*;
 
 use crate::{stream::WStream, ImageInfo, PngEncoderFilterFlags};
 

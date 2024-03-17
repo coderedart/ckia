@@ -1,6 +1,6 @@
-use ckia_sys::*;
+use crate::bindings::*;
 
-use crate::{path::SkiaPath, Matrix, PathEffect1DStyle, PathEffectTrimMode, SkiaPointer};
+use crate::{path::SkiaPath, Matrix, PathEffect1DStyle, PathEffectTrimMode};
 
 crate::skia_wrapper!(refcnt, PathEffect, sk_path_effect_t, sk_path_effect_unref);
 

@@ -1,8 +1,8 @@
 use std::ffi::CString;
 
-use crate::*;
-
-use self::{
+use crate::types::*;
+use crate::{bindings::*, skia_wrapper, Color};
+use crate::{
     canvas::Canvas,
     paint::Paint,
     path::SkiaPath,

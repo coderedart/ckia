@@ -1,9 +1,9 @@
-use ckia_sys::*;
+use crate::bindings::*;
 
 use crate::{
     bitmap::BitMap, color::Color, font::Font, image::Image, paint::Paint, path::SkiaPath,
     picture::Picture, region::Region, rrect::RRect, skia_wrapper, text_blob::TextBlob, BlendMode,
-    ClipOp, Color4f, IRect, Matrix, Matrix44, Point, PointMode, Rect, SamplingOptions, SkiaPointer,
+    ClipOp, Color4f, IRect, Matrix, Matrix44, Point, PointMode, Rect, SamplingOptions,
     TextEncoding,
 };
 
@@ -24,7 +24,7 @@ impl Canvas {
     }
     pub fn clear_color4f(&mut self, color: Color4f) {
         unsafe {
-            sk_canvas_clear_color4f(self.inner, *color.as_ref());
+            sk_canvas_clear_color4f(self.inner, color);
         }
     }
     pub fn discard(&mut self) {
@@ -43,7 +43,7 @@ impl Canvas {
     }
     pub fn draw_color4f(&mut self, color: Color4f, mode: BlendMode) {
         unsafe {
-            sk_canvas_draw_color4f(self.inner, *color.as_ref(), mode);
+            sk_canvas_draw_color4f(self.inner, color, mode);
         }
     }
     pub fn draw_points(&mut self, mode: PointMode, points: &[Point], paint: &Paint) {

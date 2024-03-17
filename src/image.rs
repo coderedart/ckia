@@ -1,3 +1,4 @@
+use crate::bindings::*;
 use crate::{
     bitmap::BitMap,
     color::ColorSpace,
@@ -5,9 +6,8 @@ use crate::{
     gr_context::{DirectContext, GrRecordingContext},
     pixmap::PixMap,
     shader::Shader,
-    AlphaType, ColorType, Matrix, SamplingOptions, ShaderTileMode, SkiaPointer,
+    AlphaType, ColorType, Matrix, SamplingOptions, ShaderTileMode,
 };
-use ckia_sys::*;
 
 use crate::ImageInfo;
 
