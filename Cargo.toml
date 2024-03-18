@@ -32,9 +32,9 @@ disable_caching_downloads_in_user_cache = []
 
 [dependencies]
 paste = { version = "*" }
-mlua = { version = "0.9", features = ["luau-vector4"], optional = true }
+mlua = { version = "0.9", features = ["luau"], optional = true }
 heck = { version = "*" }
 [dev-dependencies]
 glfw = { version = "*" }
 glow = { version = "*" }
-mlua = { version = "0.9", features = ["luau-vector4"] }
+mlua = { version = "0.9", features = ["luau"] }

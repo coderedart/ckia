@@ -1,4 +1,4 @@
-use crate::bindings::*;
+use crate::{bindings::*, SkiaOptPtr};
 
 use crate::{
     bitmap::BitMap, color::Color, font::Font, image::Image, paint::Paint, path::SkiaPath,
@@ -122,8 +122,8 @@ impl Canvas {
     pub fn save(&mut self) -> i32 {
         unsafe { sk_canvas_save(self.as_ptr_mut()) }
     }
-    pub fn save_layer(&mut self, rect: &Rect, paint: &Paint) -> i32 {
-        unsafe { sk_canvas_save_layer(self.as_ptr_mut(), rect.as_ptr(), paint.as_ptr()) }
+    pub fn save_layer(&mut self, rect: Option<&Rect>, paint: Option<&Paint>) -> i32 {
+        unsafe { sk_canvas_save_layer(self.as_ptr_mut(), rect.or_null(), paint.or_null()) }
     }
     pub fn restore(&mut self) {
         unsafe { sk_canvas_restore(self.as_ptr_mut()) }

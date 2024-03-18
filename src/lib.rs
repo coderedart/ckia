@@ -236,6 +236,11 @@ macro_rules! pod_struct {
                 );
             )+
         }
+        impl crate::SkiaOptPtr<$opaque> for Option<$name> {
+            fn or_null(&self) -> *const $opaque {
+                self.map(|s| s.as_ptr()).unwrap_or(std::ptr::null())
+            }
+        }
         impl crate::SkiaOptPtr<$opaque> for Option<&$name> {
             fn or_null(&self) -> *const $opaque {
                 self.map(|s| s.as_ptr()).unwrap_or(std::ptr::null())

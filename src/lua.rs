@@ -1,6 +1,8 @@
 use std::{cell::RefCell, ffi::CString, rc::Rc};
 
-use mlua::{FromLua, IntoLua, Lua, Table, UserData, UserDataRef, UserDataRefMut, Value, Vector};
+use mlua::{
+    FromLua, Function, IntoLua, Lua, Table, UserData, UserDataRef, UserDataRefMut, Value, Vector,
+};
 
 use self::{
     canvas::Canvas,
@@ -12,6 +14,7 @@ use self::{
     path::SkiaPath,
     path_effect::PathEffect,
     region::Region,
+    rrect::RRect,
     shader::Shader,
     string::SkiaString,
     typeface::{FontMgr, FontStyle, Typeface},
@@ -99,23 +102,22 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
 
     {
         let color = lua.create_table()?;
-        color.set(
-            "new_from_argb",
-            lua.create_function(|_, args: (u8, u8, u8, u8)| {
-                Ok(Color::new(args.0, args.1, args.2, args.3).as_u32())
-            })?,
-        )?;
+
         for (name, c) in NAMED_COLORS {
             // colors don't contain alpha. So, lets set full opaque alpha and OR it with color.
-            let c: Color4f = Color::from_u32(c | (0xFF << 24)).into();
-
-            color.set(*name, Vector::new(c.fR, c.fG, c.fB, c.fA))?;
+            let c = Color::from_u32(c | (0xFF000000));
+            color.set(*name, c)?;
         }
 
         color.set_readonly(true);
         table.set("color", color)?;
     }
-
+    table.set(
+        "color_from_alpha_rgb",
+        lua.create_function(|_, (alpha, rgb): (f32, Vector)| {
+            Ok(Color::new(alpha as _, rgb.x() as _, rgb.y() as _, rgb.z() as _).as_u32())
+        })?,
+    )?;
     table.set(
         "new_paint",
         lua.create_function(|_, ()| Ok(Paint::default()))?,
@@ -125,59 +127,37 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
         lua.create_function(|_, ()| Ok(Matrix::default()))?,
     )?;
     table.set(
-        "new_linear_gradient_shader",
+        "new_path",
+        lua.create_function(|_, ()| Ok(SkiaPath::default()))?,
+    )?;
+
+    table.set(
+        "new_rrect",
+        lua.create_function(|_, ()| Ok(RRect::default()))?,
+    )?;
+    table.set(
+        "new_region",
+        lua.create_function(|_, ()| Ok(Region::default()))?,
+    )?;
+    table.set(
+        "new_textstyle",
+        lua.create_function(|_, ()| Ok(TextStyle::default()))?,
+    )?;
+
+    table.set(
+        "new_font_collection",
+        lua.create_function(|_, ()| Ok(FontCollection::default()))?,
+    )?;
+    table.set(
+        "new_paragraph_builder",
         lua.create_function(
-            |_,
-             (points, colors, color_pos, tile_mode, local_mat): (
-                Vector,
-                Vec<Color>,
-                Option<Vec<f32>>,
-                ShaderTileMode,
-                Option<UserDataRef<Matrix>>,
-            )| {
-                Ok(Shader::new_linear_gradient(
-                    &[
-                        Point::new(points.x(), points.y()),
-                        Point::new(points.z(), points.w()),
-                    ],
-                    &colors,
-                    color_pos.as_deref(),
-                    tile_mode,
-                    local_mat.as_deref(),
-                ))
+            |_, (style, fc): (UserDataRef<ParagraphStyle>, UserDataRef<FontCollection>)| {
+                Ok(ParagraphBuider::new(&style, &fc))
             },
         )?,
     )?;
     table.set(
-        "new_blur_filter",
-        lua.create_function(|_, (style, sigma): (BlurStyle, f32)| {
-            Ok(MaskFilter::new_blur(style, sigma))
-        })?,
-    )?;
-    table.set(
-        "new_radial_gradient_shader",
-        lua.create_function(
-            |_,
-             (circle, colors, color_pos, tile_mode, local_mat): (
-                Vector,
-                Vec<Color>,
-                Option<Vec<f32>>,
-                ShaderTileMode,
-                Option<UserDataRef<Matrix>>,
-            )| {
-                Ok(Shader::new_radial_gradient(
-                    Point::new(circle.x(), circle.y()),
-                    circle.z(),
-                    &colors,
-                    color_pos.as_deref(),
-                    tile_mode,
-                    local_mat.as_deref(),
-                ))
-            },
-        )?,
-    )?;
-    table.set(
-        "create_image_from_bytes",
+        "new_image_from_bytes",
         lua.create_function(|lua, bytes: Vec<u8>| {
             let dtx = lua.named_registry_value::<UserDataRef<Rc<RefCell<DirectContext>>>>(
                 "skia_direct_context",
@@ -189,12 +169,395 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
             Ok(image)
         })?,
     )?;
+    {
+        // Filters
+
+        // Mask
+        table.set(
+            "new_blur_maskfilter",
+            lua.create_function(|_, (style, sigma): (BlurStyle, f32)| {
+                Ok(MaskFilter::new_blur(style, sigma))
+            })?,
+        )?;
+        table.set(
+            "new_table_maskfilter",
+            lua.create_function(|_, table_bytes: Vec<u8>| {
+                Ok(MaskFilter::new_table(&table_bytes.try_into().map_err(
+                    |_| mlua::Error::FromLuaConversionError {
+                        from: "vec<u8>",
+                        to: "[u8; 256]",
+                        message: None,
+                    },
+                )?))
+            })?,
+        )?;
+        table.set(
+            "new_gamma_maskfilter",
+            lua.create_function(|_, gamma: f32| Ok(MaskFilter::new_gamma(gamma)))?,
+        )?;
+        table.set(
+            "new_clip_maskfilter",
+            lua.create_function(|_, (min, max): (u8, u8)| Ok(MaskFilter::new_clip(min, max)))?,
+        )?;
+        table.set(
+            "new_shader_maskfilter",
+            lua.create_function(|_, shader: UserDataRef<Shader>| {
+                Ok(MaskFilter::new_shader(&shader))
+            })?,
+        )?;
+
+        // Color
+
+        table.set(
+            "new_mode_colorfilter",
+            lua.create_function(|_, (color, mode): (Color, BlendMode)| {
+                Ok(ColorFilter::new_mode(color, mode))
+            })?,
+        )?;
+        table.set(
+            "new_lighting_colorfilter",
+            lua.create_function(|_, (mul, add): (Color, Color)| {
+                Ok(ColorFilter::new_lighting(mul, add))
+            })?,
+        )?;
+        table.set(
+            "new_compose_colorfilter",
+            lua.create_function(
+                |_, (outer, inner): (UserDataRef<ColorFilter>, UserDataRef<ColorFilter>)| {
+                    Ok(ColorFilter::new_compose(&outer, &inner))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_color_matrix_colorfilter",
+            lua.create_function(|_, arr: [f32; 20]| Ok(ColorFilter::new_color_matrix(&arr)))?,
+        )?;
+        table.set(
+            "new_luma_colorfilter",
+            lua.create_function(|_, ()| Ok(ColorFilter::new_luma_color()))?,
+        )?;
+
+        // Image
+
+        table.set(
+            "new_arithmetic_imagefilter",
+            lua.create_function(
+                |_,
+                 (k1, k2, k3, k4, enforce_pm_color, background, foreground, crop_rect): (
+                    f32,
+                    f32,
+                    f32,
+                    f32,
+                    bool,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<Rect>,
+                )| {
+                    Ok(ImageFilter::new_arithmetic(
+                        k1,
+                        k2,
+                        k3,
+                        k4,
+                        enforce_pm_color,
+                        background.as_deref(),
+                        foreground.as_deref(),
+                        crop_rect.as_ref(),
+                    ))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_blend_imagefilter",
+            lua.create_function(
+                |_,
+                 (mode, background, foreground, crop_rect): (
+                    BlendMode,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<Rect>,
+                )| {
+                    Ok(ImageFilter::new_blend(
+                        mode,
+                        background.as_deref(),
+                        foreground.as_deref(),
+                        crop_rect.as_ref(),
+                    ))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_blur_imagefilter",
+            lua.create_function(
+                |_,
+                 (sigma_x, sigma_y, tile_mode, input, crop_rect): (
+                    f32,
+                    f32,
+                    ShaderTileMode,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<Rect>,
+                )| {
+                    Ok(ImageFilter::new_blur(
+                        sigma_x,
+                        sigma_y,
+                        tile_mode,
+                        input.as_deref(),
+                        crop_rect.as_ref(),
+                    ))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_color_filter_imagefilter",
+            lua.create_function(
+                |_,
+                 (mut cf, input, crop_rect): (
+                    UserDataRefMut<ColorFilter>,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<Rect>,
+                )| {
+                    Ok(ImageFilter::new_color_filter(
+                        &mut cf,
+                        input.as_deref(),
+                        crop_rect.as_ref(),
+                    ))
+                },
+            )?,
+        )?;
+        table.set(
+            "compose_imagefilter",
+            lua.create_function(
+                |_, (outer, inner): (UserDataRef<ImageFilter>, UserDataRef<ImageFilter>)| {
+                    Ok(ImageFilter::compose(&outer, &inner))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_displacement_map_effect_imagefilter",
+            lua.create_function(
+                |_,
+                 (
+                    x_channel_selector,
+                    y_channel_selector,
+                    scale,
+                    displacement,
+                    color,
+                    crop_rect,
+                ): (
+                    ColorChannel,
+                    ColorChannel,
+                    f32,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<Rect>,
+                )| {
+                    Ok(ImageFilter::new_displacement_map_effect(
+                        x_channel_selector,
+                        y_channel_selector,
+                        scale,
+                        displacement.as_deref(),
+                        color.as_deref(),
+                        crop_rect.as_ref(),
+                    ))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_drop_shadow_imagefilter",
+            lua.create_function(
+                |_,
+                 (dx, dy, sigma_x, sigma_y, color, input, crop_rect): (
+                    f32,
+                    f32,
+                    f32,
+                    f32,
+                    Color,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<Rect>,
+                )| {
+                    Ok(ImageFilter::new_drop_shadow(
+                        dx,
+                        dy,
+                        sigma_x,
+                        sigma_y,
+                        color,
+                        input.as_deref(),
+                        crop_rect.as_ref(),
+                    ))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_drop_shadow_only_imagefilter",
+            lua.create_function(
+                |_,
+                 (dx, dy, sigma_x, sigma_y, color, input, crop_rect): (
+                    f32,
+                    f32,
+                    f32,
+                    f32,
+                    Color,
+                    Option<UserDataRef<ImageFilter>>,
+                    Option<Rect>,
+                )| {
+                    Ok(ImageFilter::new_drop_shadow_only(
+                        dx,
+                        dy,
+                        sigma_x,
+                        sigma_y,
+                        color,
+                        input.as_deref(),
+                        crop_rect.as_ref(),
+                    ))
+                },
+            )?,
+        )?;
+    }
+    {
+        // Path Effect
+
+        table.set(
+            "compose_patheffect",
+            lua.create_function(
+                |_, (first, second): (UserDataRef<PathEffect>, UserDataRef<PathEffect>)| {
+                    Ok(PathEffect::create_compose(&first, &second))
+                },
+            )?,
+        )?;
+        table.set(
+            "sum_patheffect",
+            lua.create_function(
+                |_, (first, second): (UserDataRef<PathEffect>, UserDataRef<PathEffect>)| {
+                    Ok(PathEffect::create_sum(&first, &second))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_discrete_patheffect",
+            lua.create_function(|_, (seg_length, deviation, seed_assist): (f32, f32, u32)| {
+                Ok(PathEffect::discrete(seg_length, deviation, seed_assist))
+            })?,
+        )?;
+        table.set(
+            "new_corner_patheffect",
+            lua.create_function(|_, radius: f32| Ok(PathEffect::create_corner(radius)))?,
+        )?;
+
+        table.set(
+            "new_1d_path_patheffect",
+            lua.create_function(
+                |_,
+                 (path, advance, phase, style): (
+                    UserDataRef<SkiaPath>,
+                    f32,
+                    f32,
+                    PathEffect1DStyle,
+                )| { Ok(PathEffect::create_1d_path(&path, advance, phase, style)) },
+            )?,
+        )?;
+
+        table.set(
+            "new_2d_line_patheffect",
+            lua.create_function(|_, (width, matrix): (f32, UserDataRef<Matrix>)| {
+                Ok(PathEffect::create_2d_line(width, &matrix))
+            })?,
+        )?;
+        table.set(
+            "new_2d_path_patheffect",
+            lua.create_function(
+                |_, (matrix, path): (UserDataRef<Matrix>, UserDataRef<SkiaPath>)| {
+                    Ok(PathEffect::create_2d_path(&matrix, &path))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_dash_patheffect",
+            lua.create_function(|_, (intervals, phase): (Vec<f32>, f32)| {
+                Ok(PathEffect::create_dash(&intervals, phase))
+            })?,
+        )?;
+        table.set(
+            "new_trim_patheffect",
+            lua.create_function(|_, (start, stop, mode): (f32, f32, PathEffectTrimMode)| {
+                Ok(PathEffect::create_trim(start, stop, mode))
+            })?,
+        )?;
+    }
+    {
+        // Shaders
+
+        table.set(
+            "new_empty_shader",
+            lua.create_function(|_, ()| Ok(Shader::new_empty()))?,
+        )?;
+        table.set(
+            "new_color_shader",
+            lua.create_function(|_, color: Color| Ok(Shader::new_color(color)))?,
+        )?;
+
+        table.set(
+            "new_blend_shader",
+            lua.create_function(
+                |_, (mode, dst, src): (BlendMode, UserDataRef<Shader>, UserDataRef<Shader>)| {
+                    Ok(Shader::new_blend(mode, &dst, &src))
+                },
+            )?,
+        )?;
+        table.set(
+            "new_linear_gradient_shader",
+            lua.create_function(
+                |_,
+                 (start, end, colors, color_pos, tile_mode, local_mat): (
+                    Point,
+                    Point,
+                    Vec<Color>,
+                    Option<Vec<f32>>,
+                    ShaderTileMode,
+                    Option<UserDataRef<Matrix>>,
+                )| {
+                    Ok(Shader::new_linear_gradient(
+                        &[start, end],
+                        &colors,
+                        color_pos.as_deref(),
+                        tile_mode,
+                        local_mat.as_deref(),
+                    ))
+                },
+            )?,
+        )?;
+
+        table.set(
+            "new_radial_gradient_shader",
+            lua.create_function(
+                |_,
+                 (circle, colors, color_pos, tile_mode, local_mat): (
+                    Vector,
+                    Vec<Color>,
+                    Option<Vec<f32>>,
+                    ShaderTileMode,
+                    Option<UserDataRef<Matrix>>,
+                )| {
+                    Ok(Shader::new_radial_gradient(
+                        Point::new(circle.x(), circle.y()),
+                        circle.z(),
+                        &colors,
+                        color_pos.as_deref(),
+                        tile_mode,
+                        local_mat.as_deref(),
+                    ))
+                },
+            )?,
+        )?;
+    }
 
     lua.load(CKIA_LUA_SETUP).call(&table)?;
     table.set_readonly(true);
     Ok(table)
 }
 const CKIA_LUA_SETUP: &str = include_str!("ckia_setup.luau");
+
+fn get_ckia_table(lua: &Lua) -> Table {
+    lua.named_registry_value("ckia").unwrap()
+}
 impl UserData for Image {
     fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
         fields.add_field_method_get("width", |_, this| Ok(this.get_width()));
@@ -231,8 +594,8 @@ impl UserData for Canvas {
 
         methods.add_method_mut(
             "draw_line",
-            |_, this, (vector, mut paint): (Vector, UserDataRefMut<Paint>)| {
-                Ok(this.draw_line(vector.x(), vector.y(), vector.z(), vector.w(), &mut paint))
+            |_, this, (from, to, mut paint): (Vector, Vector, UserDataRefMut<Paint>)| {
+                Ok(this.draw_line(from.x(), from.y(), to.x(), to.y(), &mut paint))
             },
         );
         methods.add_method_mut("draw_paint", |_, this, mut paint: UserDataRefMut<Paint>| {
@@ -252,8 +615,8 @@ impl UserData for Canvas {
         );
         methods.add_method_mut(
             "draw_circle",
-            |_, this, (vector, mut paint): (Vector, UserDataRefMut<Paint>)| {
-                Ok(this.draw_circle(vector.x(), vector.y(), vector.z(), &mut paint))
+            |_, this, (center, radius, mut paint): (Vector, f32, UserDataRefMut<Paint>)| {
+                Ok(this.draw_circle(center.x(), center.y(), radius, &mut paint))
             },
         );
 
@@ -265,8 +628,8 @@ impl UserData for Canvas {
         );
         methods.add_method_mut(
             "draw_image",
-            |_, this, (img, point, mut paint): (UserDataRef<Image>, Point, UserDataRefMut<Paint>)| {
-                Ok(this.draw_image(&img, point.x, point.y,&SamplingOptions::LINEAR,&mut paint))
+            |_, this, (img, point, mut paint): (UserDataRef<Image>, Vector, UserDataRefMut<Paint>)| {
+                Ok(this.draw_image(&img, point.x(), point.y(),&SamplingOptions::LINEAR,&mut paint))
             },
         );
         methods.add_method_mut(
@@ -283,7 +646,12 @@ impl UserData for Canvas {
             },
         );
         methods.add_method_mut("reset_matrix", |_, this, ()| Ok(this.reset_matrix()));
-
+        methods.add_method_mut(
+            "save_layer",
+            |_, this, (bounds, paint): (Option<Rect>, Option<UserDataRef<Paint>>)| {
+                Ok(this.save_layer(bounds.as_ref(), paint.as_deref()))
+            },
+        );
         methods.add_method_mut("save", |_, this, ()| Ok(this.save()));
         methods.add_method_mut("restore", |_, this, ()| Ok(this.restore()));
         methods.add_method_mut("translate", |_, this, value: Vector| {
@@ -323,29 +691,24 @@ impl UserData for SkiaPath {
         methods.add_method_mut("line_to", |_, this, point: Point| {
             Ok(this.line_to(point.x, point.y))
         });
-        methods.add_method_mut("quad_to", |_, this, value: Vector| {
-            Ok(this.quad_to(value.x(), value.y(), value.z(), value.w()))
+        methods.add_method_mut("quad_to", |_, this, (first, second): (Vector, Vector)| {
+            Ok(this.quad_to(first.x(), first.y(), second.x(), second.y()))
         });
     }
 }
 impl<'lua> FromLua<'lua> for Color {
     fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
-        match value {
-            Value::Vector(v) => {
-                let c = Color4f {
-                    fR: v.x(),
-                    fG: v.y(),
-                    fB: v.z(),
-                    fA: v.w(),
-                };
-                Ok(c.into())
+        Ok(Color::from_u32(match value {
+            Value::Integer(i) => i as u32,
+            Value::Number(f) => f as u32,
+            _ => {
+                return Err(mlua::Error::FromLuaConversionError {
+                    from: "value",
+                    to: "color",
+                    message: Some(format!("{value:?}")),
+                })
             }
-            _ => Err(mlua::Error::FromLuaConversionError {
-                from: "value",
-                to: "color",
-                message: Some(format!("{value:?}")),
-            }),
-        }
+        }))
     }
 }
 impl<'lua> IntoLua<'lua> for Color {
@@ -358,7 +721,7 @@ impl UserData for Region {
         methods.add_method("is_empty", |_, this, ()| Ok(this.is_empty()));
         methods.add_method("is_rect", |_, this, ()| Ok(this.is_rect()));
         methods.add_method("is_complex", |_, this, ()| Ok(this.is_complex()));
-        methods.add_method("get_bounds", |_, this, ()| Ok(this.get_bounds()));
+        // methods.add_method("get_bounds", |_, this, ()| Ok(this.get_bounds()));
         methods.add_method_mut("set_empty", |_, this, ()| Ok(this.set_empty()));
         methods.add_method_mut(
             "set_rect",
@@ -390,12 +753,17 @@ impl UserData for Region {
 impl<'lua> FromLua<'lua> for IRect {
     fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
         Ok(match value {
-            Value::Vector(v) => IRect {
-                left: v.x() as _,
-                top: v.y() as _,
-                right: v.z() as _,
-                bottom: v.w() as _,
-            },
+            Value::Table(t) => {
+                let min: Vector = t.get("min")?;
+                let max: Vector = t.get("max")?;
+
+                IRect {
+                    left: min.x() as _,
+                    top: min.y() as _,
+                    right: max.x() as _,
+                    bottom: max.y() as _,
+                }
+            }
             _ => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "value",
@@ -407,24 +775,25 @@ impl<'lua> FromLua<'lua> for IRect {
     }
 }
 impl<'lua> IntoLua<'lua> for IRect {
-    fn into_lua(self, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
-        Ok(Value::Vector(Vector::new(
-            self.left as _,
-            self.top as _,
-            self.right as _,
-            self.bottom as _,
-        )))
+    fn into_lua(self, lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
+        let ckia = get_ckia_table(lua);
+        ckia.get::<_, Function>("new_irect")?
+            .call((self.left, self.top, self.right, self.bottom))
     }
 }
 impl<'lua> FromLua<'lua> for Rect {
     fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
         Ok(match value {
-            Value::Vector(v) => Rect {
-                left: v.x(),
-                top: v.y(),
-                right: v.z(),
-                bottom: v.w(),
-            },
+            Value::Table(t) => {
+                let min: Vector = t.get("min")?;
+                let max: Vector = t.get("max")?;
+                Rect {
+                    left: min.x(),
+                    top: min.y(),
+                    right: max.x(),
+                    bottom: max.y(),
+                }
+            }
             _ => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "value",
@@ -436,13 +805,10 @@ impl<'lua> FromLua<'lua> for Rect {
     }
 }
 impl<'lua> IntoLua<'lua> for Rect {
-    fn into_lua(self, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
-        Ok(Value::Vector(Vector::new(
-            self.left,
-            self.top,
-            self.right,
-            self.bottom,
-        )))
+    fn into_lua(self, lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
+        let ckia = get_ckia_table(lua);
+        ckia.get::<_, Function>("new_rect")?
+            .call((self.left, self.top, self.right, self.bottom))
     }
 }
 impl<'lua> FromLua<'lua> for Point {
@@ -461,7 +827,7 @@ impl<'lua> FromLua<'lua> for Point {
 }
 impl<'lua> IntoLua<'lua> for Point {
     fn into_lua(self, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
-        Ok(Value::Vector(Vector::new(self.x, self.y, 0.0, 0.0)))
+        Ok(Value::Vector(Vector::new(self.x, self.y, 0.0)))
     }
 }
 impl UserData for Matrix {
@@ -593,6 +959,7 @@ impl UserData for FontCollection {
         );
     }
 }
+impl UserData for RRect {}
 impl UserData for ParagraphStyle {
     fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
         fields.add_field_method_get("text_style", |_, this| Ok(this.get_text_style()));
@@ -616,40 +983,15 @@ impl UserData for ParagraphStyle {
             }))
         });
         fields.add_field_method_get("text_height_behavior", |_, this| {
-            Ok(this.get_text_height_behavior() as u32)
+            Ok(this.get_text_height_behavior())
         });
-        fields.add_field_method_set("text_height_behavior", |_, this, value: u32| {
-            Ok(this.set_text_height_behavior(match value {
-                0 => TextHeightBehavior::ALL_TEXT_HEIGHT_BEHAVIOR,
-                1 => TextHeightBehavior::DISABLE_FIRST_ASCENT_TEXT_HEIGHT_BEHAVIOR,
-                2 => TextHeightBehavior::DISABLE_LAST_DESCENT_TEXT_HEIGHT_BEHAVIOR,
-                3 => TextHeightBehavior::DISABLE_ALL_TEXT_HEIGHT_BEHAVIOR,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "text direction",
-                        message: None,
-                    })
-                }
-            }))
-        });
-        fields.add_field_method_get("text_align", |_, this| Ok(this.get_text_align() as u32));
-        fields.add_field_method_set("text_align", |_, this, value: u32| {
-            Ok(this.set_text_align(match value {
-                0 => ParagraphTextAlign::LEFT_TEXT_ALIGN,
-                1 => ParagraphTextAlign::RIGHT_TEXT_ALIGN,
-                2 => ParagraphTextAlign::CENTER_TEXT_ALIGN,
-                3 => ParagraphTextAlign::JUSTIFY_TEXT_ALIGN,
-                4 => ParagraphTextAlign::START_TEXT_ALIGN,
-                5 => ParagraphTextAlign::END_TEXT_ALIGN,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "text direction",
-                        message: None,
-                    })
-                }
-            }))
+        fields.add_field_method_set(
+            "text_height_behavior",
+            |_, this, value: TextHeightBehavior| Ok(this.set_text_height_behavior(value)),
+        );
+        fields.add_field_method_get("text_align", |_, this| Ok(this.get_text_align()));
+        fields.add_field_method_set("text_align", |_, this, value: ParagraphTextAlign| {
+            Ok(this.set_text_align(value))
         });
         fields.add_field_method_get("max_lines", |_, this| Ok(this.get_max_lines()));
         fields.add_field_method_set("max_lines", |_, this, value: usize| {
@@ -742,61 +1084,22 @@ impl UserData for TextStyle {
             Ok(this.set_background(&paint))
         });
 
+        fields.add_field_method_get("decoration", |_, this| Ok(this.get_decoration_type()));
+        fields.add_field_method_set("decoration", |_, this, value: TextDecoration| {
+            Ok(this.set_decoration_type(value))
+        });
+
+        fields.add_field_method_get("decoration_mode", |_, this| Ok(this.get_decoration_mode()));
+        fields.add_field_method_set("decoration_mode", |_, this, value: TextDecorationMode| {
+            Ok(this.set_decoration_mode(value))
+        });
+
         fields.add_field_method_get(
-            "decoration",
-            |_, this| Ok(this.get_decoration_type() as u32),
+            "decoration_style",
+            |_, this| Ok(this.get_decoration_style()),
         );
-        fields.add_field_method_set("decoration", |_, this, value: u32| {
-            Ok(this.set_decoration_type(match value {
-                0 => TextDecoration::NO_DECORATION,
-                1 => TextDecoration::UNDERLINE,
-                2 => TextDecoration::OVERLINE,
-                4 => TextDecoration::LINE_THROUGH,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "text decoration type",
-                        message: None,
-                    })
-                }
-            }))
-        });
-
-        fields.add_field_method_get("decoration_mode", |_, this| {
-            Ok(this.get_decoration_mode() as u32)
-        });
-        fields.add_field_method_set("decoration_mode", |_, this, value: u32| {
-            Ok(this.set_decoration_mode(match value {
-                0 => TextDecorationMode::GAPS_TEXT_DECORATION_MODE,
-                1 => TextDecorationMode::THROUGH_TEXT_DECORATION_MODE,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "text decoration mode",
-                        message: None,
-                    })
-                }
-            }))
-        });
-
-        fields.add_field_method_get("decoration_style", |_, this| {
-            Ok(this.get_decoration_style() as u32)
-        });
-        fields.add_field_method_set("decoration_style", |_, this, value: u32| {
-            Ok(this.set_decoration_style(match value {
-                0 => TextDecorationStyle::SOLID_TEXT_DECORATION_STYLE,
-                1 => TextDecorationStyle::DOUBLE_TEXT_DECORATION_STYLE,
-                2 => TextDecorationStyle::DOTTED_TEXT_DECORATION_STYLE,
-                3 => TextDecorationStyle::DASHED_TEXT_DECORATION_STYLE,
-                4 => TextDecorationStyle::WAVY_TEXT_DECORATION_STYLE,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "text decoration",
-                        message: None,
-                    })
-                }
-            }))
+        fields.add_field_method_set("decoration_style", |_, this, value: TextDecorationStyle| {
+            Ok(this.set_decoration_style(value))
         });
         fields.add_field_method_get(
             "decoration_color",
@@ -817,7 +1120,6 @@ impl UserData for TextStyle {
                 fs.get_width() as f32,
                 fs.get_weight() as f32,
                 fs.get_slant() as u32 as f32,
-                0.0,
             ))
         });
         fields.add_field_method_set("font_style", |_, this, value: FontStyle| {
@@ -914,35 +1216,13 @@ impl UserData for Paint {
             Ok(p.set_stroke_miter(value))
         });
 
-        fields.add_field_method_get("stroke_cap", |_, p| Ok(p.get_stroke_cap() as u32));
-        fields.add_field_method_set("stroke_cap", |_, p, value: u32| {
-            Ok(p.set_stroke_cap(match value {
-                0 => StrokeCap::BUTT_SK_STROKE_CAP,
-                1 => StrokeCap::ROUND_SK_STROKE_CAP,
-                2 => StrokeCap::SQUARE_SK_STROKE_CAP,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "stroke_cap",
-                        message: Some(format!("{value}")),
-                    })
-                }
-            }))
+        fields.add_field_method_get("stroke_cap", |_, p| Ok(p.get_stroke_cap()));
+        fields.add_field_method_set("stroke_cap", |_, p, value: StrokeCap| {
+            Ok(p.set_stroke_cap(value))
         });
-        fields.add_field_method_get("stroke_join", |_, p| Ok(p.get_stroke_join() as u32));
-        fields.add_field_method_set("stroke_join", |_, p, value: u32| {
-            Ok(p.set_stroke_join(match value {
-                0 => StrokeJoin::MITER_SK_STROKE_JOIN,
-                1 => StrokeJoin::ROUND_SK_STROKE_JOIN,
-                2 => StrokeJoin::BEVEL_SK_STROKE_JOIN,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "stroke_cap",
-                        message: Some(format!("{value}")),
-                    })
-                }
-            }))
+        fields.add_field_method_get("stroke_join", |_, p| Ok(p.get_stroke_join()));
+        fields.add_field_method_set("stroke_join", |_, p, value: StrokeJoin| {
+            Ok(p.set_stroke_join(value))
         });
         fields.add_field_method_get("dither", |_, p| Ok(p.is_dither()));
         fields.add_field_method_set("dither", |_, p, value: bool| Ok(p.set_dither(value)));
@@ -999,152 +1279,152 @@ impl UserData for ColorFilter {}
 impl UserData for PathEffect {}
 impl UserData for ImageFilter {}
 const NAMED_COLORS: &[(&str, u32)] = &[
-    ("ALICE_BLUE", 0xF0F8FF),
-    ("ANTIQUE_WHITE", 0xFAEBD7),
-    ("AQUA", 0x00FFFF),
-    ("AQUAMARINE", 0x7FFFD4),
-    ("AZURE", 0xF0FFFF),
-    ("BEIGE", 0xF5F5DC),
-    ("BISQUE", 0xFFE4C4),
-    ("BLACK", 0x000000),
-    ("BLANCHED_ALMOND", 0xFFEBCD),
-    ("BLUE", 0x0000FF),
-    ("BLUE_VIOLET", 0x8A2BE2),
-    ("BROWN", 0xA52A2A),
-    ("BURLY_WOOD", 0xDEB887),
-    ("CADET_BLUE", 0x5F9EA0),
-    ("CHARTREUSE", 0x7FFF00),
-    ("CHOCOLATE", 0xD2691E),
-    ("CORAL", 0xFF7F50),
-    ("CORNFLOWER_BLUE", 0x6495ED),
-    ("CORNSILK", 0xFFF8DC),
-    ("CRIMSON", 0xDC143C),
-    ("CYAN", 0x00FFFF),
-    ("DARK_BLUE", 0x00008B),
-    ("DARK_CYAN", 0x008B8B),
-    ("DARK_GOLDEN_ROD", 0xB8860B),
-    ("DARK_GRAY", 0xA9A9A9),
-    ("DARK_GREEN", 0x006400),
-    ("DARK_KHAKI", 0xBDB76B),
-    ("DARK_MAGENTA", 0x8B008B),
-    ("DARK_OLIVE_GREEN", 0x556B2F),
-    ("DARKORANGE", 0xFF8C00),
-    ("DARK_ORCHID", 0x9932CC),
-    ("DARK_RED", 0x8B0000),
-    ("DARK_SALMON", 0xE9967A),
-    ("DARK_SEA_GREEN", 0x8FBC8F),
-    ("DARK_SLATE_BLUE", 0x483D8B),
-    ("DARK_SLATE_GRAY", 0x2F4F4F),
-    ("DARK_TURQUOISE", 0x00CED1),
-    ("DARK_VIOLET", 0x9400D3),
-    ("DEEP_PINK", 0xFF1493),
-    ("DEEP_SKY_BLUE", 0x00BFFF),
-    ("DIM_GRAY", 0x696969),
-    ("DODGER_BLUE", 0x1E90FF),
-    ("FIRE_BRICK", 0xB22222),
-    ("FLORAL_WHITE", 0xFFFAF0),
-    ("FOREST_GREEN", 0x228B22),
-    ("FUCHSIA", 0xFF00FF),
-    ("GAINSBORO", 0xDCDCDC),
-    ("GHOST_WHITE", 0xF8F8FF),
-    ("GOLD", 0xFFD700),
-    ("GOLDEN_ROD", 0xDAA520),
-    ("GRAY", 0x808080),
-    ("GREEN", 0x008000),
-    ("GREEN_YELLOW", 0xADFF2F),
-    ("HONEY_DEW", 0xF0FFF0),
-    ("HOT_PINK", 0xFF69B4),
-    ("INDIAN_RED", 0xCD5C5C),
-    ("INDIGO", 0x4B0082),
-    ("IVORY", 0xFFFFF0),
-    ("KHAKI", 0xF0E68C),
-    ("LAVENDER", 0xE6E6FA),
-    ("LAVENDER_BLUSH", 0xFFF0F5),
-    ("LAWN_GREEN", 0x7CFC00),
-    ("LEMON_CHIFFON", 0xFFFACD),
-    ("LIGHT_BLUE", 0xADD8E6),
-    ("LIGHT_CORAL", 0xF08080),
-    ("LIGHT_CYAN", 0xE0FFFF),
-    ("LIGHT_GOLDEN_ROD_YELLOW", 0xFAFAD2),
-    ("LIGHT_GREY", 0xD3D3D3),
-    ("LIGHT_GREEN", 0x90EE90),
-    ("LIGHT_PINK", 0xFFB6C1),
-    ("LIGHT_SALMON", 0xFFA07A),
-    ("LIGHT_SEA_GREEN", 0x20B2AA),
-    ("LIGHT_SKY_BLUE", 0x87CEFA),
-    ("LIGHT_SLATE_GRAY", 0x778899),
-    ("LIGHT_STEEL_BLUE", 0xB0C4DE),
-    ("LIGHT_YELLOW", 0xFFFFE0),
-    ("LIME", 0x00FF00),
-    ("LIME_GREEN", 0x32CD32),
-    ("LINEN", 0xFAF0E6),
-    ("MAGENTA", 0xFF00FF),
-    ("MAROON", 0x800000),
-    ("MEDIUM_AQUA_MARINE", 0x66CDAA),
-    ("MEDIUM_BLUE", 0x0000CD),
-    ("MEDIUM_ORCHID", 0xBA55D3),
-    ("MEDIUM_PURPLE", 0x9370D8),
-    ("MEDIUM_SEA_GREEN", 0x3CB371),
-    ("MEDIUM_SLATE_BLUE", 0x7B68EE),
-    ("MEDIUM_SPRING_GREEN", 0x00FA9A),
-    ("MEDIUM_TURQUOISE", 0x48D1CC),
-    ("MEDIUM_VIOLET_RED", 0xC71585),
-    ("MIDNIGHT_BLUE", 0x191970),
-    ("MINT_CREAM", 0xF5FFFA),
-    ("MISTY_ROSE", 0xFFE4E1),
-    ("MOCCASIN", 0xFFE4B5),
-    ("NAVAJO_WHITE", 0xFFDEAD),
-    ("NAVY", 0x000080),
-    ("OLD_LACE", 0xFDF5E6),
-    ("OLIVE", 0x808000),
-    ("OLIVE_DRAB", 0x6B8E23),
-    ("ORANGE", 0xFFA500),
-    ("ORANGE_RED", 0xFF4500),
-    ("ORCHID", 0xDA70D6),
-    ("PALE_GOLDEN_ROD", 0xEEE8AA),
-    ("PALE_GREEN", 0x98FB98),
-    ("PALE_TURQUOISE", 0xAFEEEE),
-    ("PALE_VIOLET_RED", 0xD87093),
-    ("PAPAYA_WHIP", 0xFFEFD5),
-    ("PEACH_PUFF", 0xFFDAB9),
-    ("PERU", 0xCD853F),
-    ("PINK", 0xFFC0CB),
-    ("PLUM", 0xDDA0DD),
-    ("POWDER_BLUE", 0xB0E0E6),
-    ("PURPLE", 0x800080),
-    ("RED", 0xFF0000),
-    ("ROSY_BROWN", 0xBC8F8F),
-    ("ROYAL_BLUE", 0x4169E1),
-    ("SADDLE_BROWN", 0x8B4513),
-    ("SALMON", 0xFA8072),
-    ("SANDY_BROWN", 0xF4A460),
-    ("SEA_GREEN", 0x2E8B57),
-    ("SEA_SHELL", 0xFFF5EE),
-    ("SIENNA", 0xA0522D),
-    ("SILVER", 0xC0C0C0),
-    ("SKY_BLUE", 0x87CEEB),
-    ("SLATE_BLUE", 0x6A5ACD),
-    ("SLATE_GRAY", 0x708090),
-    ("SNOW", 0xFFFAFA),
-    ("SPRING_GREEN", 0x00FF7F),
-    ("STEEL_BLUE", 0x4682B4),
-    ("TAN", 0xD2B48C),
-    ("TEAL", 0x008080),
-    ("THISTLE", 0xD8BFD8),
-    ("TOMATO", 0xFF6347),
-    ("TURQUOISE", 0x40E0D0),
-    ("VIOLET", 0xEE82EE),
-    ("WHEAT", 0xF5DEB3),
-    ("WHITE", 0xFFFFFF),
-    ("WHITE_SMOKE", 0xF5F5F5),
-    ("YELLOW", 0xFFFF00),
-    ("YELLOW_GREEN", 0x9ACD3),
+    ("aliceBlue", 0xF0F8FF),
+    ("antiqueWhite", 0xFAEBD7),
+    ("aqua", 0x00FFFF),
+    ("aquamarine", 0x7FFFD4),
+    ("azure", 0xF0FFFF),
+    ("beige", 0xF5F5DC),
+    ("bisque", 0xFFE4C4),
+    ("black", 0x000000),
+    ("blanchedAlmond", 0xFFEBCD),
+    ("blue", 0x0000FF),
+    ("blueViolet", 0x8A2BE2),
+    ("brown", 0xA52A2A),
+    ("burlyWood", 0xDEB887),
+    ("cadetBlue", 0x5F9EA0),
+    ("chartreuse", 0x7FFF00),
+    ("chocolate", 0xD2691E),
+    ("coral", 0xFF7F50),
+    ("cornflowerBlue", 0x6495ED),
+    ("cornsilk", 0xFFF8DC),
+    ("crimson", 0xDC143C),
+    ("cyan", 0x00FFFF),
+    ("darkBlue", 0x00008B),
+    ("darkCyan", 0x008B8B),
+    ("darkGoldenRod", 0xB8860B),
+    ("darkGray", 0xA9A9A9),
+    ("darkGreen", 0x006400),
+    ("darkKhaki", 0xBDB76B),
+    ("darkMagenta", 0x8B008B),
+    ("darkOliveGreen", 0x556B2F),
+    ("darkorange", 0xFF8C00),
+    ("darkOrchid", 0x9932CC),
+    ("darkRed", 0x8B0000),
+    ("darkSalmon", 0xE9967A),
+    ("darkSeaGreen", 0x8FBC8F),
+    ("darkSlateBlue", 0x483D8B),
+    ("darkSlateGray", 0x2F4F4F),
+    ("darkTurquoise", 0x00CED1),
+    ("darkViolet", 0x9400D3),
+    ("deepPink", 0xFF1493),
+    ("deepSkyBlue", 0x00BFFF),
+    ("dimGray", 0x696969),
+    ("dodgerBlue", 0x1E90FF),
+    ("fireBrick", 0xB22222),
+    ("floralWhite", 0xFFFAF0),
+    ("forestGreen", 0x228B22),
+    ("fuchsia", 0xFF00FF),
+    ("gainsboro", 0xDCDCDC),
+    ("ghostWhite", 0xF8F8FF),
+    ("gold", 0xFFD700),
+    ("goldenRod", 0xDAA520),
+    ("gray", 0x808080),
+    ("green", 0x008000),
+    ("greenYellow", 0xADFF2F),
+    ("honeyDew", 0xF0FFF0),
+    ("hotPink", 0xFF69B4),
+    ("indianRed", 0xCD5C5C),
+    ("indigo", 0x4B0082),
+    ("ivory", 0xFFFFF0),
+    ("khaki", 0xF0E68C),
+    ("lavender", 0xE6E6FA),
+    ("lavenderBlush", 0xFFF0F5),
+    ("lawnGreen", 0x7CFC00),
+    ("lemonChiffon", 0xFFFACD),
+    ("lightBlue", 0xADD8E6),
+    ("lightCoral", 0xF08080),
+    ("lightCyan", 0xE0FFFF),
+    ("lightGoldenRodYellow", 0xFAFAD2),
+    ("lightGrey", 0xD3D3D3),
+    ("lightGreen", 0x90EE90),
+    ("lightPink", 0xFFB6C1),
+    ("lightSalmon", 0xFFA07A),
+    ("lightSeaGreen", 0x20B2AA),
+    ("lightSkyBlue", 0x87CEFA),
+    ("lightSlateGray", 0x778899),
+    ("lightSteelBlue", 0xB0C4DE),
+    ("lightYellow", 0xFFFFE0),
+    ("lime", 0x00FF00),
+    ("limeGreen", 0x32CD32),
+    ("linen", 0xFAF0E6),
+    ("magenta", 0xFF00FF),
+    ("maroon", 0x800000),
+    ("mediumAquaMarine", 0x66CDAA),
+    ("mediumBlue", 0x0000CD),
+    ("mediumOrchid", 0xBA55D3),
+    ("mediumPurple", 0x9370D8),
+    ("mediumSeaGreen", 0x3CB371),
+    ("mediumSlateBlue", 0x7B68EE),
+    ("mediumSpringGreen", 0x00FA9A),
+    ("mediumTurquoise", 0x48D1CC),
+    ("mediumVioletRed", 0xC71585),
+    ("midnightBlue", 0x191970),
+    ("mintCream", 0xF5FFFA),
+    ("mistyRose", 0xFFE4E1),
+    ("moccasin", 0xFFE4B5),
+    ("navajoWhite", 0xFFDEAD),
+    ("navy", 0x000080),
+    ("oldLace", 0xFDF5E6),
+    ("olive", 0x808000),
+    ("oliveDrab", 0x6B8E23),
+    ("orange", 0xFFA500),
+    ("orangeRed", 0xFF4500),
+    ("orchid", 0xDA70D6),
+    ("paleGoldenRod", 0xEEE8AA),
+    ("paleGreen", 0x98FB98),
+    ("paleTurquoise", 0xAFEEEE),
+    ("paleVioletRed", 0xD87093),
+    ("papayaWhip", 0xFFEFD5),
+    ("peachPuff", 0xFFDAB9),
+    ("peru", 0xCD853F),
+    ("pink", 0xFFC0CB),
+    ("plum", 0xDDA0DD),
+    ("powderBlue", 0xB0E0E6),
+    ("purple", 0x800080),
+    ("red", 0xFF0000),
+    ("rosyBrown", 0xBC8F8F),
+    ("royalBlue", 0x4169E1),
+    ("saddleBrown", 0x8B4513),
+    ("salmon", 0xFA8072),
+    ("sandyBrown", 0xF4A460),
+    ("seaGreen", 0x2E8B57),
+    ("seaShell", 0xFFF5EE),
+    ("sienna", 0xA0522D),
+    ("silver", 0xC0C0C0),
+    ("skyBlue", 0x87CEEB),
+    ("slateBlue", 0x6A5ACD),
+    ("slateGray", 0x708090),
+    ("snow", 0xFFFAFA),
+    ("springGreen", 0x00FF7F),
+    ("steelBlue", 0x4682B4),
+    ("tan", 0xD2B48C),
+    ("teal", 0x008080),
+    ("thistle", 0xD8BFD8),
+    ("tomato", 0xFF6347),
+    ("turquoise", 0x40E0D0),
+    ("violet", 0xEE82EE),
+    ("wheat", 0xF5DEB3),
+    ("white", 0xFFFFFF),
+    ("whiteSmoke", 0xF5F5F5),
+    ("yellow", 0xFFFF00),
+    ("yellowGreen", 0x9ACD3),
 ];
 use super::bindings::*;
-fn value_as_numerical(value: Value) -> Option<f64> {
+fn value_as_numerical(value: &Value) -> Option<f64> {
     match value {
-        Value::Integer(i) => Some(i as _),
-        Value::Number(f) => Some(f),
+        Value::Integer(i) => Some(*i as _),
+        Value::Number(f) => Some(*f),
         _ => None,
     }
 }
@@ -1163,7 +1443,7 @@ macro_rules! impl_from_to_lua_for_enum {
                     value: mlua::prelude::LuaValue<'lua>,
                     _lua: &'lua mlua::prelude::Lua,
                 ) -> mlua::prelude::LuaResult<Self> {
-                    Ok(match value_as_numerical(value) {
+                    Ok(match value_as_numerical(&value) {
                         Some(value) => {
                             let value = value as u32;
                             match value {

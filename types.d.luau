@@ -1,158 +1,147 @@
-declare class Vector2
-    x: number
-    y: number
+declare class Color
 end
-declare class Vector3 extends Vector2
-    z: number
+declare class ColorList
+    aliceBlue: Color
+    antiqueWhite: Color
+    aqua: Color
+    aquamarine: Color
+    azure: Color
+    beige: Color
+    bisque: Color
+    black: Color
+    blanchedAlmond: Color
+    blue: Color
+    blueViolet: Color
+    brown: Color
+    burlyWood: Color
+    cadetBlue: Color
+    chartreuse: Color
+    chocolate: Color
+    coral: Color
+    cornflowerBlue: Color
+    cornsilk: Color
+    crimson: Color
+    cyan: Color
+    darkBlue: Color
+    darkCyan: Color
+    darkGoldenRod: Color
+    darkGray: Color
+    darkGreen: Color
+    darkKhaki: Color
+    darkMagenta: Color
+    darkOliveGreen: Color
+    darkorange: Color
+    darkOrchid: Color
+    darkRed: Color
+    darkSalmon: Color
+    darkSeaGreen: Color
+    darkSlateBlue: Color
+    darkSlateGray: Color
+    darkTurquoise: Color
+    darkViolet: Color
+    deepPink: Color
+    deepSkyBlue: Color
+    dimGray: Color
+    dodgerBlue: Color
+    fireBrick: Color
+    floralWhite: Color
+    forestGreen: Color
+    fuchsia: Color
+    gainsboro: Color
+    ghostWhite: Color
+    gold: Color
+    goldenRod: Color
+    gray: Color
+    green: Color
+    greenYellow: Color
+    honeyDew: Color
+    hotPink: Color
+    indianRed: Color
+    indigo: Color
+    ivory: Color
+    khaki: Color
+    lavender: Color
+    lavenderBlush: Color
+    lawnGreen: Color
+    lemonChiffon: Color
+    lightBlue: Color
+    lightCoral: Color
+    lightCyan: Color
+    lightGoldenRodYellow: Color
+    lightGrey: Color
+    lightGreen: Color
+    lightPink: Color
+    lightSalmon: Color
+    lightSeaGreen: Color
+    lightSkyBlue: Color
+    lightSlateGray: Color
+    lightSteelBlue: Color
+    lightYellow: Color
+    lime: Color
+    limeGreen: Color
+    linen: Color
+    magenta: Color
+    maroon: Color
+    mediumAquaMarine: Color
+    mediumBlue: Color
+    mediumOrchid: Color
+    mediumPurple: Color
+    mediumSeaGreen: Color
+    mediumSlateBlue: Color
+    mediumSpringGreen: Color
+    mediumTurquoise: Color
+    mediumVioletRed: Color
+    midnightBlue: Color
+    mintCream: Color
+    mistyRose: Color
+    moccasin: Color
+    navajoWhite: Color
+    navy: Color
+    oldLace: Color
+    olive: Color
+    oliveDrab: Color
+    orange: Color
+    orangeRed: Color
+    orchid: Color
+    paleGoldenRod: Color
+    paleGreen: Color
+    paleTurquoise: Color
+    paleVioletRed: Color
+    papayaWhip: Color
+    peachPuff: Color
+    peru: Color
+    pink: Color
+    plum: Color
+    powderBlue: Color
+    purple: Color
+    red: Color
+    rosyBrown: Color
+    royalBlue: Color
+    saddleBrown: Color
+    salmon: Color
+    sandyBrown: Color
+    seaGreen: Color
+    seaShell: Color
+    sienna: Color
+    silver: Color
+    skyBlue: Color
+    slateBlue: Color
+    slateGray: Color
+    snow: Color
+    springGreen: Color
+    steelBlue: Color
+    tan: Color
+    teal: Color
+    thistle: Color
+    tomato: Color
+    turquoise: Color
+    violet: Color
+    wheat: Color
+    white: Color
+    whiteSmoke: Color
+    yellow: Color
+    yellowGreen: Color
 end
-declare class Vector4 extends Vector3
-    w: number
-end
-declare function vector(x: number, y: number, z: number, w: number): Vector4
-export type Color = Vector4
-
-export type ColorTable = {
-    ALICE_BLUE: Color,
-    ANTIQUE_WHITE: Color,
-    AQUA: Color,
-    AQUAMARINE: Color,
-    AZURE: Color,
-    BEIGE: Color,
-    BISQUE: Color,
-    BLACK: Color,
-    BLANCHED_ALMOND: Color,
-    BLUE: Color,
-    BLUE_VIOLET: Color,
-    BROWN: Color,
-    BURLY_WOOD: Color,
-    CADET_BLUE: Color,
-    CHARTREUSE: Color,
-    CHOCOLATE: Color,
-    CORAL: Color,
-    CORNFLOWER_BLUE: Color,
-    CORNSILK: Color,
-    CRIMSON: Color,
-    CYAN: Color,
-    DARK_BLUE: Color,
-    DARK_CYAN: Color,
-    DARK_GOLDEN_ROD: Color,
-    DARK_GRAY: Color,
-    DARK_GREEN: Color,
-    DARK_KHAKI: Color,
-    DARK_MAGENTA: Color,
-    DARK_OLIVE_GREEN: Color,
-    DARKORANGE: Color,
-    DARK_ORCHID: Color,
-    DARK_RED: Color,
-    DARK_SALMON: Color,
-    DARK_SEA_GREEN: Color,
-    DARK_SLATE_BLUE: Color,
-    DARK_SLATE_GRAY: Color,
-    DARK_TURQUOISE: Color,
-    DARK_VIOLET: Color,
-    DEEP_PINK: Color,
-    DEEP_SKY_BLUE: Color,
-    DIM_GRAY: Color,
-    DODGER_BLUE: Color,
-    FIRE_BRICK: Color,
-    FLORAL_WHITE: Color,
-    FOREST_GREEN: Color,
-    FUCHSIA: Color,
-    GAINSBORO: Color,
-    GHOST_WHITE: Color,
-    GOLD: Color,
-    GOLDEN_ROD: Color,
-    GRAY: Color,
-    GREEN: Color,
-    GREEN_YELLOW: Color,
-    HONEY_DEW: Color,
-    HOT_PINK: Color,
-    INDIAN_RED: Color,
-    INDIGO: Color,
-    IVORY: Color,
-    KHAKI: Color,
-    LAVENDER: Color,
-    LAVENDER_BLUSH: Color,
-    LAWN_GREEN: Color,
-    LEMON_CHIFFON: Color,
-    LIGHT_BLUE: Color,
-    LIGHT_CORAL: Color,
-    LIGHT_CYAN: Color,
-    LIGHT_GOLDEN_ROD_YELLOW: Color,
-    LIGHT_GREY: Color,
-    LIGHT_GREEN: Color,
-    LIGHT_PINK: Color,
-    LIGHT_SALMON: Color,
-    LIGHT_SEA_GREEN: Color,
-    LIGHT_SKY_BLUE: Color,
-    LIGHT_SLATE_GRAY: Color,
-    LIGHT_STEEL_BLUE: Color,
-    LIGHT_YELLOW: Color,
-    LIME: Color,
-    LIME_GREEN: Color,
-    LINEN: Color,
-    MAGENTA: Color,
-    MAROON: Color,
-    MEDIUM_AQUA_MARINE: Color,
-    MEDIUM_BLUE: Color,
-    MEDIUM_ORCHID: Color,
-    MEDIUM_PURPLE: Color,
-    MEDIUM_SEA_GREEN: Color,
-    MEDIUM_SLATE_BLUE: Color,
-    MEDIUM_SPRING_GREEN: Color,
-    MEDIUM_TURQUOISE: Color,
-    MEDIUM_VIOLET_RED: Color,
-    MIDNIGHT_BLUE: Color,
-    MINT_CREAM: Color,
-    MISTY_ROSE: Color,
-    MOCCASIN: Color,
-    NAVAJO_WHITE: Color,
-    NAVY: Color,
-    OLD_LACE: Color,
-    OLIVE: Color,
-    OLIVE_DRAB: Color,
-    ORANGE: Color,
-    ORANGE_RED: Color,
-    ORCHID: Color,
-    PALE_GOLDEN_ROD: Color,
-    PALE_GREEN: Color,
-    PALE_TURQUOISE: Color,
-    PALE_VIOLET_RED: Color,
-    PAPAYA_WHIP: Color,
-    PEACH_PUFF: Color,
-    PERU: Color,
-    PINK: Color,
-    PLUM: Color,
-    POWDER_BLUE: Color,
-    PURPLE: Color,
-    RED: Color,
-    ROSY_BROWN: Color,
-    ROYAL_BLUE: Color,
-    SADDLE_BROWN: Color,
-    SALMON: Color,
-    SANDY_BROWN: Color,
-    SEA_GREEN: Color,
-    SEA_SHELL: Color,
-    SIENNA: Color,
-    SILVER: Color,
-    SKY_BLUE: Color,
-    SLATE_BLUE: Color,
-    SLATE_GRAY: Color,
-    SNOW: Color,
-    SPRING_GREEN: Color,
-    STEEL_BLUE: Color,
-    TAN: Color,
-    TEAL: Color,
-    THISTLE: Color,
-    TOMATO: Color,
-    TURQUOISE: Color,
-    VIOLET: Color,
-    WHEAT: Color,
-    WHITE: Color,
-    WHITE_SMOKE: Color,
-    YELLOW: Color,
-    YELLOW_GREEN: Color,
-}
 declare class CkiaEnumItem
 end
 declare class CkiaEnumClass
@@ -801,7 +790,7 @@ declare class webpencoderCompression_internal extends CkiaEnumClass
     lossless : webpencoderCompression
     lossy : webpencoderCompression
 end
-declare class ckiaEnumsList
+declare class CkiaEnumsList
     affinity: affinity_internal
     alphatype: alphatype_internal
     bitmapAllocflags: bitmapAllocflags_internal
@@ -871,11 +860,37 @@ declare class ckiaEnumsList
     webpencoderCompression: webpencoderCompression_internal
 end
 
+
+declare class Vec2
+    x: number
+    y: number
+	function __add(self, other: Vec2): Vec2
+    function __mul(self, other: Vec2): Vec2
+    function __sub(self, other: Vec2): Vec2
+end
+declare class Vec3 extends Vec2
+    z: number
+	function __add(self, other: Vec3): Vec3
+    function __mul(self, other: Vec3): Vec3
+    function __sub(self, other: Vec3): Vec3
+end
+
+declare vector: (((x: number, y: number, z: number) -> Vec3) & ((x: number, y: number) -> Vec2))
 declare class Matrix
 end
 declare class Shader
 end
 declare class MaskFilter
+end
+declare class ColorFilter
+end
+declare class ImageFilter
+end
+declare class Image
+end
+declare class Region
+end
+declare class SkiaPath
 end
 declare class Paint
     function set_shader(self, shader: Shader): nil
@@ -883,25 +898,109 @@ declare class Paint
     antialias: boolean
     color: Color
 end
-export type Circle = Vector4
-export type Rect = Vector4
+export type Rect_Impl = {
+    __index: Rect_Impl,
+    new: (x: number, y: number, width: number, height: number) -> Rect,
+    new_from_points: (min: Vec2, max: Vec2) -> Rect,
+    clone: (self: Rect) -> Rect,
+    translate: (self: Rect, offset: Vec2) -> (),
+}
+
+export type Rect = typeof(setmetatable( 
+    {} :: {min: Vec2,max: Vec2,},
+    {} :: Rect_Impl
+))
 declare class Canvas
-    function draw_circle(self, circle: Circle, paint: Paint): nil
+    function clear(self, color: Color): nil
+    function discard(self): nil
+    function get_save_count(self): number
+    function restore_to_count(self, count: number): nil
+    function draw_color(self, color: Color, mode: blendmode): nil
+    function draw_points(self, points: {Vec2}, paint: Paint): nil
+    function draw_point(self, point: Vec2, paint: Paint): nil
+    function draw_line(self, from: Vec2, to: Vec2, paint: Paint): nil
+    function draw_paint(self, paint: Paint): nil
+    function draw_rect(self, rect: Rect, paint: Paint): nil
+    function draw_round_rect(self, rect: Rect, corner_radius: Vec2, paint: Paint): nil
+    function draw_circle(self, center: Vec2, radius: number, paint: Paint): nil
+    function draw_path(self, path: SkiaPath, paint: Paint): nil
+    function draw_image(self, img: Image, point: Vec2, paint: Paint): nil
+    function draw_image_rect(self, img: Image, src: Rect, dst: Rect, paint: Paint): nil
+    function reset_matrix(self): nil
+    function save_layer(self, bounds: Rect?, paint: Paint?): nil
+    function save(self): number
+    function restore(self): nil
+    function translate(self, offsets: Vec2): nil
+    function scale(self, scales: Vec2): nil
+    function skew(self, skews: Vec2): nil
+    function rotate_degrees(self, value: number): nil
+    function rotate_radians(self, value: number): nil
+    function clip_rect(self, rect: Rect, op: clipop, antialias: boolean): nil
+    function clip_region(self, region: Region, op: clipop): nil
+
 end
-export type RectTable = {
-    new: (x: number, y: number, width: number, height: number) -> Rect
-}
-export type CircleTable = {
-    new: (center_x: number, center_y: number, radius: number) -> Circle
-}
+declare class RRect
+end
+declare class TextStyle
+end
+declare class FontCollection
+end
+declare class ParagraphBuilder
+end
+declare class PathEffect
+end
 export type Ckia = {
-    color: ColorTable,
-    enums: ckiaEnumsList,
-    rect: RectTable,
-    circle: CircleTable,
+    color: ColorList,
+    enums: CkiaEnumsList,
+    rect: Rect_Impl,
+    color_from_alpha_rgb: (alpha: number, rgb: Vec3) -> Color,
     new_paint: () -> Paint,
-    new_linear_gradient_shader: (points: Vector4, colors: {Color}, color_pos: {number}?, tile_mode: shaderTilemode, mat: Matrix?) -> Shader,
-    new_blur_filter: (style: blurstyle, sigma: number) -> MaskFilter
+    new_id_matrix: () -> Matrix,
+    new_path: () -> SkiaPath,
+    new_rrect: () -> RRect,
+    new_region: () -> Region,
+    new_texstyle: () -> TextStyle,
+    new_font_colleciton: () -> FontCollection,
+    new_paragraph_builder: () -> ParagraphBuilder,
+    new_image_from_bytes: (bytes: string) -> Image?
+
+    -- mask filters
+    new_blur_maskfilter: (style: blurstyle, sigma: number) -> MaskFilter,
+    new_table_maskfilter: (table_bytes_256: {number}) -> MaskFilter,
+    new_gamma_maskfilter: (gamme: number) -> MaskFilter,
+    new_clip_maskfilter: (minimum: number, maximum: number) -> MaskFilter,
+    -- color filters
+    new_mode_colorfilter: (color: Color, mode: blendmode) -> ColorFilter,
+    new_lighting_colorfilter: (mul: Color, add: Color) -> ColorFilter,
+    new_compose_colorfilter: (outer: ColorFilter, inner: ColorFilter) -> ColorFilter,
+    new_color_matrix_colorfilter: (arr_atleast_20_floats: {number}) -> ColorFilter,
+    new_luma_colorfilter: () -> ColorFilter,
+    -- image filters
+    new_arithmetic_imagefilter: (k1: number, k2: number, k3: number, k4: number, enforce_pm_color: boolean, background: ImageFilter?, crop_rect: Rect?) -> ImageFilter,
+    new_blend_imagefilter: (mode: blendmode, background: ImageFilter?, foreground: ImageFilter?, crop_rect: Rect?) -> ImageFilter,
+    new_blur_imagefilter: (sigma_x: number, sigma_y: number, tile_mode: shaderTilemode, input: ImageFilter?, crop_rect: Rect?) -> ImageFilter,
+    new_color_filter_imagefilter: (cf: ColorFilter, input: ImageFilter?, crop_rect: Rect?) -> ImageFilter,
+    compose_imagefilter: (outer: ImageFilter, inner: ImageFilter) -> ImageFilter,
+    new_displacement_map_effect_imagefilter: (x_channel_selector: number, y_channel_selector: number, scale: number, displacement: ImageFilter?, color: ImageFilter?, crop_rect: Rect?) -> ImageFilter,
+    new_drop_shadow_imagefilter: (dx: number, dy: number, sigma_x: number, sigma_y: number, color: Color, input: ImageFilter?, crop_rect: Rect?) -> ImageFilter,
+    new_drop_shadow_only_imagefilter: (dx: number, dy: number, sigma_x: number, sigma_y: number, color: Color, input: ImageFilter?, crop_rect: Rect?) -> ImageFilter,
+    -- path effects
+    compose_patheffect: (first: PathEffect, second: PathEffect) -> PathEffect,
+    sum_patheffect: (first: PathEffect, second: PathEffect) -> PathEffect,
+    new_discrete_patheffect: (seg_length: number, deviation: number, seed_assist: number) -> PathEffect,
+    new_corner_patheffect: (radius: number) -> PathEffect,
+    new_1d_path_patheffect: (path: SkiaPath, advance: number, phase: number, style: pathEffect1dStyle) -> PathEffect,
+    new_2d_line_patheffect: (width: number, mat: Matrix) -> PathEffect,
+    new_2d_path_patheffect: (mat: Matrix, path: SkiaPath) -> PathEffect,
+    new_dash_patheffect: (intervals_atleast_2_floats: {number}, phase: number) -> PathEffect,
+    new_trim_patheffect: (start: number, stop: number, mode: pathEffectTrimMode) -> PathEffect,
+    -- shader
+    new_empty_shader: () -> Shader
+    new_color_shader: (color: Color) -> Shader
+    new_blend_shader: (mode: blendmode, dst: Shader, src: Shader) -> Shader
+    new_linear_gradient_shader: (start: Vec2, endd: Vec2, colors: {Color},  color_pos: {number}?, tile_mode: shaderTilemode, mat: Matrix?) -> Shader
+    new_radial_gradient_shader: (center: Vec2, radius: number,  colors: {Color},  color_pos: {number}?, tile_mode: shaderTilemode, mat: Matrix?) -> Shader
+    
 }
 declare ckia: Ckia
 

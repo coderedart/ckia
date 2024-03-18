@@ -1,4 +1,4 @@
-use crate::bindings::*;
+use crate::{bindings::*, ColorChannel};
 
 use crate::{
     color::Color, shader::Shader, skia_wrapper, BlendMode, BlurStyle, Highcontrastconfig, Rect,
@@ -26,8 +26,8 @@ impl MaskFilter {
             ))
         }
     }
-    pub fn new_table(table: &[u8]) -> Self {
-        assert!(table.len() >= 256);
+    pub fn new_table(table: &[u8; 256]) -> Self {
+        // assert!(table.len() >= 256);
         unsafe { Self::from_owned_ptr(sk_maskfilter_new_table(table.as_ptr())) }
     }
     pub fn new_gamma(gamma: f32) -> Self {
@@ -141,53 +141,83 @@ impl ImageFilter {
         }
     }
     pub fn new_color_filter(
-        sigma_x: f32,
-        sigma_y: f32,
-        tile_mode: ShaderTileMode,
+        cf: &mut ColorFilter,
         input: Option<&Self>,
         crop_rect: Option<&Rect>,
     ) -> Self {
         unsafe {
-            Self::from_owned_ptr(sk_imagefilter_new_blur(
+            Self::from_owned_ptr(sk_imagefilter_new_color_filter(
+                cf.as_ptr_mut(),
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn compose(&self, inner: &Self) -> Self {
+        unsafe { Self::from_owned_ptr(sk_imagefilter_new_compose(self.as_ptr(), inner.as_ptr())) }
+    }
+    pub fn new_displacement_map_effect(
+        x_channel_selector: ColorChannel,
+        y_channel_selector: ColorChannel,
+        scale: f32,
+        displacement: Option<&Self>,
+        color: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_displacement_map_effect(
+                x_channel_selector,
+                y_channel_selector,
+                scale,
+                displacement.or_null(),
+                color.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_drop_shadow(
+        dx: f32,
+        dy: f32,
+        sigma_x: f32,
+        sigma_y: f32,
+        color: Color,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_drop_shadow(
+                dx,
+                dy,
                 sigma_x,
                 sigma_y,
-                tile_mode,
+                color.as_u32(),
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_drop_shadow_only(
+        dx: f32,
+        dy: f32,
+        sigma_x: f32,
+        sigma_y: f32,
+        color: Color,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_drop_shadow_only(
+                dx,
+                dy,
+                sigma_x,
+                sigma_y,
+                color.as_u32(),
                 input.or_null(),
                 crop_rect.or_null(),
             ))
         }
     }
     /*
-    pub fn sk_imagefilter_new_compose(
-        outer: *const sk_imagefilter_t,
-        inner: *const sk_imagefilter_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_displacement_map_effect(
-        xChannelSelector: sk_color_channel_t,
-        yChannelSelector: sk_color_channel_t,
-        scale: f32,
-        displacement: *const sk_imagefilter_t,
-        color: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_drop_shadow(
-        dx: f32,
-        dy: f32,
-        sigmaX: f32,
-        sigmaY: f32,
-        color: sk_color_t,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_drop_shadow_only(
-        dx: f32,
-        dy: f32,
-        sigmaX: f32,
-        sigmaY: f32,
-        color: sk_color_t,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
     pub fn sk_imagefilter_new_image(
         image: *mut sk_image_t,
         srcRect: *const sk_rect_t,
