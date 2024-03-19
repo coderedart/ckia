@@ -143,20 +143,20 @@ impl<T: FfiDrop> SkiaOptPtrMut<T> for Option<&mut SkiaWrapper<T>> {
     }
 }
 
-pub(crate) unsafe trait VirtualRefCounted {
+pub unsafe trait VirtualRefCounted {
     fn as_vref_ptr(&self) -> *const sk_refcnt_t;
     fn as_vref_ptr_mut(&mut self) -> *mut sk_refcnt_t;
     fn is_unique(&self) -> bool;
 
-    fn safe_ref(&mut self);
-    fn safe_unref(&mut self);
+    fn safe_ref(&mut self) -> Self;
+    fn safe_unref(self);
 }
-pub(crate) unsafe trait NotVirtualRefCounted {
+pub unsafe trait NotVirtualRefCounted {
     fn as_nvref_ptr(&self) -> *const sk_nvrefcnt_t;
     fn as_nvref_ptr_mut(&mut self) -> *mut sk_nvrefcnt_t;
     fn is_unique(&self) -> bool;
-    fn safe_ref(&mut self);
-    fn safe_unref(&mut self);
+    fn safe_ref(&mut self) -> Self;
+    fn safe_unref(self);
 }
 
 /// Empty struct to wrap skia version related functions
@@ -309,11 +309,16 @@ macro_rules! skia_wrapper {
                 unsafe { sk_refcnt_unique(self.as_vref_ptr()) }
             }
 
-            fn safe_ref(&mut self) {
-                unsafe { sk_refcnt_safe_ref(self.as_vref_ptr_mut()) }
+            fn safe_ref(&mut self) -> Self {
+                unsafe {
+                    sk_refcnt_safe_ref(self.as_vref_ptr_mut());
+                    Self::from_owned_ptr(self.inner)
+                }
             }
-            fn safe_unref(&mut self) {
-                unsafe { sk_refcnt_safe_unref(self.as_vref_ptr_mut()) }
+            fn safe_unref(mut self) {
+                unsafe {
+                    sk_refcnt_safe_unref(self.as_vref_ptr_mut());
+                }
             }
         }
     };
@@ -329,11 +334,15 @@ macro_rules! skia_wrapper {
             fn is_unique(&self) -> bool {
                 unsafe { sk_nvrefcnt_unique(self.as_nvref_ptr()) }
             }
-            fn safe_ref(&mut self) {
-                unsafe { sk_nvrefcnt_safe_ref(self.as_nvref_ptr_mut()) }
+            fn safe_ref(&mut self) -> Self {
+                unsafe {
+                    sk_nvrefcnt_safe_ref(self.as_nvref_ptr_mut());
+                Self::from_owned_ptr(self.inner) }
             }
-            fn safe_unref(&mut self) {
-                unsafe { sk_nvrefcnt_safe_unref(self.as_nvref_ptr_mut()) }
+            fn safe_unref(mut self) {
+                unsafe {
+                    sk_nvrefcnt_safe_unref(self.as_nvref_ptr_mut());
+                }
             }
         }
     };

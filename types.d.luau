@@ -888,6 +888,15 @@ export type CkiaColorTable = {
     yellowGreen: Color,
 }
 declare class Matrix
+    translate_x: number
+    translate_y: number
+    scale_x: number
+    scale_y: number
+    skew_x: number
+    skew_y: number
+    perspective_0: number
+    perspective_1: number
+    perspective_2: number
 end
 declare class Shader
 end
@@ -910,8 +919,39 @@ declare class SkiaPath
     function quad_to(self, first: Vec2, second: Vec2): nil
     function conic_to(self, first: Vec2, second: Vec2, weight: number): nil
     function cubic_to(self, first: Vec2, second: Vec2, third: Vec2): nil
-    
-    
+    function rmove_to(self, point: Vec2): nil
+    function rline_to(self, point: Vec2): nil
+    function rquad_to(self, first: Vec2, second: Vec2): nil
+    function rconic_to(self, first: Vec2, second: Vec2, weight: number): nil
+    function rcubic_to(self, first: Vec2, second: Vec2, third: Vec2): nil
+    function arc_to(self, radius: Vec2, x_axis_rotate: number, large_arc: pathArcSize, sweep: pathDirection, end_point: Vec2): nil
+    function rarc_to(self, radius: Vec2, x_axis_rotate: number, large_arc: pathArcSize, sweep: pathDirection, end_point: Vec2): nil
+    function arc_to_with_oval(self, oval: Rect, start_angle: number, sweep_angle: number, force_move_to: boolean): nil
+    function arc_to_with_points(self, first: Vec2, second: Vec2, radius: number): nil
+    function close(self)
+    function add_rect(self, rect: Rect, dir: pathDirection): nil
+    function add_rrect(self, rrect: RRect, dir: pathDirection): nil
+    function add_rrect_start(self, rrect: RRect, dir: pathDirection, start: number): nil
+    function add_rounded_rect(self, rect: Rect, radius: Vec2, dir: pathDirection): nil
+    function add_oval(self, rect: Rect, dir: pathDirection): nil
+    function add_circle(self, center: Vec2, radius: number, dir: pathDirection): nil
+    function add_arc(self, rect: Rect, start_angle: number, sweep_angle: number): nil
+    function get_filltype(self): pathFilltype
+    function set_filltype(self, filltype: pathFilltype): nil
+    function transform(self, mat: Matrix): nil
+    function transform_to_dest(self, mat: Matrix, dest: SkiaPath): nil
+    function add_path_offset(self, other: SkiaPath, offset: Vec2, mode: pathAddMode): nil
+    function add_path_matrix(self, other: SkiaPath, mat: Matrix, mode: pathAddMode): nil
+    function add_path(self, other: SkiaPath, mode: pathAddMode): nil
+    function add_path_reverse(self, other: SkiaPath): nil
+    function reset(self)
+    function rewind(self)
+    function count_points(self): number
+    function count_verbs(self): number
+    function get_point(self, index: number): Vec2
+    function get_bounds(self): Rect
+    function compute_tight_bounds(self): Rect
+    function contains(self, point: Vec2): boolean
 end
 
 declare class Paint
@@ -973,8 +1013,9 @@ declare class Canvas
     function rotate_degrees(self, value: number): nil
     function rotate_radians(self, value: number): nil
     -- clip
-    function clip_rect(self, rect: Rect, op: clipop, antialias: boolean): nil
-    function clip_region(self, region: Region, op: clipop): nil
+    function clip_rect(self, rect: Rect, op: clipop?, antialias: boolean?): nil
+    function clip_path(self, path: SkiaPath, op: clipop?, antialias: boolean?): nil
+    function clip_region(self, region: Region, op: clipop?): nil
     -- draw
     function draw_color(self, color: Color, mode: blendmode): nil
     function draw_points(self, points: {Vec2}, paint: Paint): nil
@@ -990,12 +1031,80 @@ declare class Canvas
 
 end
 declare class RRect
+
+end
+declare class Fontstyle
+    weight: number
+    width: number
+    slant: fontStyleSlant
 end
 declare class TextStyle
+    color: Color
+    has_foreground: boolean
+    foreground: Paint
+    has_background: boolean
+    background: Paint
+    decoration: textDecoration
+    decoration_mode: textDecorationMode
+    decoration_style: textDecorationStyle
+    decoration_color: Color
+    decoration_thickness_multiplier: number
+    font_style: Fontstyle
+    shadow_number: number
+    font_feature_number: number
+    font_size: number
+    baseline_shift: number
+    height: number
+    height_override: boolean
+    half_leading: boolean
+    letter_spacing: number
+    word_spacing: number
+    function clear_foreground_color(self)
+    function clear_background_color(self)
+end
+declare class ParagraphStyle
+    text_style: TextStyle
+    text_direction: textDirection
+    text_height_behavior: textHeightBehavior
+    text_align: textAlign
+    max_lines: number
+    ellipsis: string
+    height: number
+    replace_tab_characters: boolean
+    apply_rounding_hack: boolean
+    hinting: boolean
+    unlimited_lines: boolean
+    elipsized: boolean
+    effective_align: textAlign
+    function turn_hinting_off(self): nil
+end
+declare class FontMgr
 end
 declare class FontCollection
+    function font_fallback_enabled(self): boolean
+    function enable_font_fallback(self): nil
+    function disable_font_fallback(self): nil
+    function set_default_font_manager(self, fontmgr: FontMgr): nil
+end
+declare class Paragraph
+    function get_max_width(self): number
+    function get_height(self): number
+    function get_min_intrinsic_width(self): number
+    function get_max_intrinsic_width(self): number
+    function get_alphabetic_baseline(self): number
+    function get_ideographic_baseline(self): number
+    function get_longest_line(self): number
+    function get_did_exceed_max_lines(self): boolean
+    function layout(self, width: number): nil
+    function paint(self, canvas: Canvas, point: Vec2): nil
 end
 declare class ParagraphBuilder
+    function push_style(self, style: TextStyle): nil
+    function pop(self): nil
+    function peek_style(self): TextStyle
+    function add_text(self, text: string): nil
+    function reset(self): nil
+    function build(self): Paragraph
 end
 declare class PathEffect
 end
@@ -1011,8 +1120,10 @@ export type Ckia = {
     new_rrect: () -> RRect,
     new_region: () -> Region,
     new_texstyle: () -> TextStyle,
-    new_font_colleciton: () -> FontCollection,
-    new_paragraph_builder: () -> ParagraphBuilder,
+    new_fontstyle: (weight: number, width: number, z: fontStyleSlant) -> Fontstyle,
+    new_paragraph_style: () -> ParagraphStyle,
+    new_font_collection: () -> FontCollection,
+    new_paragraph_builder: (style: ParagraphStyle, fc: FontCollection) -> ParagraphBuilder,
     new_image_from_bytes: (bytes: string) -> Image?,
 
     -- mask filters
@@ -1055,3 +1166,4 @@ export type Ckia = {
 }
 declare ckia: Ckia
 
+declare default_font_mgr: FontMgr

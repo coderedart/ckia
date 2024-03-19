@@ -146,10 +146,19 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
         "new_textstyle",
         lua.create_function(|_, ()| Ok(TextStyle::default()))?,
     )?;
-
+    table.set(
+        "new_fontstyle",
+        lua.create_function(|_, (weight, width, slant): (i32, i32, FontStyleSlant)| {
+            Ok(FontStyle::new(weight, width, slant))
+        })?,
+    )?;
     table.set(
         "new_font_collection",
         lua.create_function(|_, ()| Ok(FontCollection::default()))?,
+    )?;
+    table.set(
+        "new_paragraph_style",
+        lua.create_function(|_, ()| Ok(ParagraphStyle::default()))?,
     )?;
     table.set(
         "new_paragraph_builder",
@@ -615,14 +624,25 @@ impl UserData for Canvas {
         });
         methods.add_method_mut(
             "clip_rect",
-            |_, this, (rect, op, aa): (Rect, ClipOp, bool)| {
-                Ok(this.clip_rect_with_operation(&rect, op, aa))
+            |_, this, (rect, op, aa): (Rect, Option<ClipOp>, Option<bool>)| {
+                Ok(this.clip_rect_with_operation(
+                    &rect,
+                    op.unwrap_or(ClipOp::INTERSECT_SK_CLIPOP),
+                    aa.unwrap_or(true),
+                ))
+            },
+        );
+
+        methods.add_method_mut(
+            "clip_path",
+            |_, this, (path, op, antialias): (UserDataRef<SkiaPath>, Option<ClipOp>, Option<bool>)| {
+                Ok(this.clip_path_with_operation(&path, op.unwrap_or(ClipOp::INTERSECT_SK_CLIPOP ), antialias.unwrap_or(true)))
             },
         );
         methods.add_method_mut(
             "clip_region",
-            |_, this, (region, op): (UserDataRef<Region>, ClipOp)| {
-                Ok(this.clip_region(&region, op))
+            |_, this, (region, op): (UserDataRef<Region>, Option<ClipOp>)| {
+                Ok(this.clip_region(&region, op.unwrap_or(ClipOp::INTERSECT_SK_CLIPOP)))
             },
         );
         methods.add_method_mut(
@@ -1101,8 +1121,8 @@ impl UserData for Paragraph {
         methods.add_method_mut("layout", |_, this, value: f32| Ok(this.layout(value)));
         methods.add_method_mut(
             "paint",
-            |_, this, (mut canvas, x, y): (UserDataRefMut<Canvas>, f32, f32)| {
-                Ok(this.paint(&mut canvas, x, y))
+            |_, this, (mut canvas, point): (UserDataRefMut<Canvas>, Vector)| {
+                Ok(this.paint(&mut canvas, point.x(), point.y()))
             },
         );
     }
@@ -1117,6 +1137,8 @@ impl UserData for ParagraphBuider {
         methods.add_method_mut("add_text", |_, this, value: String| {
             Ok(this.add_text(&value))
         });
+        methods.add_method_mut("build", |_, this, ()| Ok(this.build()));
+
         methods.add_method_mut("reset", |_, this, ()| Ok(this.reset()));
     }
 }
@@ -1133,7 +1155,7 @@ impl UserData for FontMgr {
         });
         methods.add_method_mut(
             "match_family",
-            |_, this, (family_name, mut style): (String, FontStyle)| {
+            |_, this, (family_name, mut style): (String, UserDataRefMut<FontStyle>)| {
                 let cname = CString::new(family_name).unwrap_or_default();
                 let tf = this.match_family_style(cname.as_c_str(), &mut style);
                 Ok(tf)
@@ -1176,21 +1198,9 @@ impl UserData for ParagraphStyle {
         fields.add_field_method_set("text_style", |_, this, value: UserDataRef<TextStyle>| {
             Ok(this.set_text_style(&value))
         });
-        fields.add_field_method_get("text_direction", |_, this| {
-            Ok(this.get_text_direction() as u32)
-        });
-        fields.add_field_method_set("text_direction", |_, this, value: u32| {
-            Ok(this.set_text_direction(match value {
-                0 => TextDirection::RTL_TEXT_DIRECTION,
-                1 => TextDirection::RTL_TEXT_DIRECTION,
-                _ => {
-                    return Err(mlua::Error::FromLuaConversionError {
-                        from: "u32",
-                        to: "text direction",
-                        message: None,
-                    })
-                }
-            }))
+        fields.add_field_method_get("text_direction", |_, this| Ok(this.get_text_direction()));
+        fields.add_field_method_set("text_direction", |_, this, value: TextDirection| {
+            Ok(this.set_text_direction(value))
         });
         fields.add_field_method_get("text_height_behavior", |_, this| {
             Ok(this.get_text_height_behavior())
@@ -1239,9 +1249,7 @@ impl UserData for ParagraphStyle {
         fields.add_field_method_get("unlimited_lines", |_, this| Ok(this.unlimited_lines()));
         fields.add_field_method_get("ellipsized", |_, this| Ok(this.ellipsized()));
 
-        fields.add_field_method_get("effective_align", |_, this| {
-            Ok(this.effective_align() as u32)
-        });
+        fields.add_field_method_get("effective_align", |_, this| Ok(this.effective_align()));
     }
 
     fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
@@ -1251,31 +1259,11 @@ impl UserData for ParagraphStyle {
         );
     }
 }
-impl<'lua> FromLua<'lua> for FontStyle {
-    fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
-        match value {
-            Value::Vector(value) => Ok(FontStyle::new(
-                value.x() as _,
-                value.y() as _,
-                match value.z() as u32 {
-                    0 => FontStyleSlant::UPRIGHT_SK_FONT_STYLE_SLANT,
-                    1 => FontStyleSlant::ITALIC_SK_FONT_STYLE_SLANT,
-                    2 => FontStyleSlant::OBLIQUE_SK_FONT_STYLE_SLANT,
-                    _ => {
-                        return Err(mlua::Error::FromLuaConversionError {
-                            from: "vector",
-                            to: "font style",
-                            message: Some(format!("{value:?}")),
-                        });
-                    }
-                },
-            )),
-            _ => Err(mlua::Error::FromLuaConversionError {
-                from: "value",
-                to: "FontStyle",
-                message: None,
-            }),
-        }
+impl UserData for FontStyle {
+    fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
+        fields.add_field_method_get("width", |_, this| Ok(this.get_width()));
+        fields.add_field_method_get("weight", |_, this| Ok(this.get_weight()));
+        fields.add_field_method_get("slant", |_, this| Ok(this.get_slant()));
     }
 }
 impl UserData for TextStyle {
@@ -1324,15 +1312,8 @@ impl UserData for TextStyle {
         fields.add_field_method_set("decoration_thickness_multiplier", |_, this, value: f32| {
             Ok(this.set_decoration_thickness_multiplier(value))
         });
-        fields.add_field_method_get("font_style", |_, this| {
-            let fs = this.get_font_style();
-            Ok(Vector::new(
-                fs.get_width() as f32,
-                fs.get_weight() as f32,
-                fs.get_slant() as u32 as f32,
-            ))
-        });
-        fields.add_field_method_set("font_style", |_, this, value: FontStyle| {
+        fields.add_field_method_get("font_style", |_, this| Ok(this.get_font_style()));
+        fields.add_field_method_set("font_style", |_, this, value: UserDataRef<FontStyle>| {
             Ok(this.set_font_style(&value))
         });
         fields.add_field_method_get("shadow_number", |_, this| Ok(this.get_shadow_number()));
@@ -1377,7 +1358,6 @@ impl UserData for TextStyle {
         });
     }
 }
-impl UserData for FontStyle {}
 impl UserData for Paint {
     fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
         fields.add_field_method_get("antialias", |_, p| Ok(p.is_antialias()));

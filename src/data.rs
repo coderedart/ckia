@@ -55,12 +55,12 @@ mod test {
             data.is_unique(),
             "skia data is not unique after just being initialized"
         );
-        data.safe_ref();
+        let d = data.safe_ref();
         assert!(
             !data.is_unique(),
             "skia data is unique after we just incremented the ref count"
         );
-        data.safe_unref();
+        d.safe_unref();
         assert!(data.is_unique(), "skia data is not unique after safe unref");
     }
 }

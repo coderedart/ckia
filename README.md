@@ -24,6 +24,7 @@ Skia's documentation is split over multiple places.
 5. [React Native Skia API](https://shopify.github.io/react-native-skia/docs/canvas/overview/) : Because of its xml like api, its *very* easy to understand teh docs. The docs unlike Flutter, are short and to the point. Great for a quick overview of most of the Skia features.
 6. [Fiddle](https://fiddle.skia.org/named/) : provides a sandboxed playground online, to play with Skia. Provides lots of examples to explain various concepts, and you can edit the code to run and see the changes live in browser. 
 7. [React Native Playlist](https://www.youtube.com/playlist?list=PLkOyNuxGl9jxyFx9YSRvy6dumPhofM3fs) : This is an excellent channel which shows how you can use the drawing commands to create pretty looking widgets. It uses react native, but you will still learn a lot about skia if you just follow along.
+8. [Skia Src](https://github.com/google/skia/tree/main/gm): Finally, you can find a *lot* of tests/examples within skia source folder under `./gm` directory. If skia can do something, there's probably a test somewhere in this directory to test that functionality.
 
 #### Why not rust-skia (skia-safe)?
 The main reason is compile times, and the table will outline the differences

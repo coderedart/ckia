@@ -6,13 +6,30 @@ mod helper;
 pub fn main() {
     use ckia::{canvas::Canvas, Color};
     use mlua::Function;
-    let lua_code = std::fs::read_to_string("./examples/code.luau").unwrap();
-    let mut load = false;
+    // for first frame
+    let mut reload_lua_code = true;
     helper::HelperContext::new([800, 600]).enter_event_loop(|htx| {
-        let HelperContext { lua, surface, .. } = htx;
-        if !load {
-            load = true;
-            lua.load(&lua_code).exec().unwrap();
+        let HelperContext {
+            lua,
+            surface,
+            events,
+            ..
+        } = htx;
+        for ev in events {
+            match ev {
+                glfw::WindowEvent::Key(k, _, _, _) if *k == glfw::Key::Enter => {
+                    reload_lua_code = true
+                }
+                _ => {}
+            }
+        }
+        if reload_lua_code {
+            reload_lua_code = false;
+            let lua_code = std::fs::read_to_string("./examples/code.luau")
+                .expect("failed to read code.luau from ./examples directory");
+            lua.load(&lua_code)
+                .exec()
+                .expect("failed to load luau code");
         }
         let mut surface_canvas = surface.get_canvas();
         let canvas = surface_canvas.as_mut();
@@ -23,7 +40,7 @@ pub fn main() {
             let _: () = tick.call(canvas).unwrap();
             Ok(())
         })
-        .unwrap();
+        .expect("tick function crashed");
     });
 }
 

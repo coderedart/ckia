@@ -8,11 +8,13 @@ use ckia::{
     font::Font,
     gr_context::*,
     paint::Paint,
+    paragraph::{FontCollection, ParagraphBuider, ParagraphStyle, TextStyle},
     path_effect::PathEffect,
     surface::{Surface, SurfaceProps},
     typeface::{FontMgr, Typeface},
     BlendMode, BlurStyle, Color, ColorType, GlFramebufferInfo, PaintStyle, PixelGeometry, Rect,
-    StrokeCap, StrokeJoin, SurfaceOrigin,
+    StrokeCap, StrokeJoin, SurfaceOrigin, VirtualRefCounted,
+    
 };
 use glfw::{Context, Glfw, GlfwReceiver, PWindow, WindowEvent};
 use glow::HasContext;
@@ -149,6 +151,7 @@ impl HelperContext {
             }
             let ckia_table = ckia::lua::add_bindings(&lua).unwrap();
             lua.globals().set("ckia", ckia_table);
+            lua.globals().set("default_font_mgr", fontmgr.safe_ref());
             lua
         };
 
