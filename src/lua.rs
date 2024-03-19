@@ -101,23 +101,26 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
     }
 
     {
+        /*
         let color = lua.create_table()?;
 
         for (name, c) in NAMED_COLORS {
             // colors don't contain alpha. So, lets set full opaque alpha and OR it with color.
             let c = Color::from_u32(c | (0xFF000000));
             color.set(*name, c)?;
+            // lets avoid running this at runtime, as getting the key repeated might disable some optimizations. purely defensive measure and I didn't measure the actual impact
+            #[cfg(debug_assertions)]
+            {
+                let c_back: Color = color.get(*name)?;
+                assert_eq!(c_back, c, "colors roundtrip failing, {name}");
+            }
         }
 
         color.set_readonly(true);
         table.set("color", color)?;
+        */
     }
-    table.set(
-        "color_from_alpha_rgb",
-        lua.create_function(|_, (alpha, rgb): (f32, Vector)| {
-            Ok(Color::new(alpha as _, rgb.x() as _, rgb.y() as _, rgb.z() as _).as_u32())
-        })?,
-    )?;
+
     table.set(
         "new_paint",
         lua.create_function(|_, ()| Ok(Paint::default()))?,
@@ -569,12 +572,59 @@ impl UserData for Canvas {
         methods.add_method_mut("clear", |_, this, value: Color| Ok(this.clear(value)));
 
         methods.add_method_mut("discard", |_, this, ()| Ok(this.discard()));
-
+        methods.add_method_mut(
+            "save_layer",
+            |_,
+             this,
+             (bounds, paint, backdrop, init_with_previous_layer): (
+                Option<Rect>,
+                Option<UserDataRef<Paint>>,
+                Option<UserDataRef<ImageFilter>>,
+                Option<bool>,
+            )| {
+                Ok(this.save_layer(
+                    bounds.as_ref(),
+                    paint.as_deref(),
+                    backdrop.as_deref(),
+                    init_with_previous_layer.unwrap_or_default(),
+                ))
+            },
+        );
+        methods.add_method_mut("save", |_, this, ()| Ok(this.save()));
+        methods.add_method_mut("restore", |_, this, ()| Ok(this.restore()));
         methods.add_method_mut("get_save_count", |_, this, ()| Ok(this.get_save_count()));
-
         methods.add_method_mut("restore_to_count", |_, this, value: i32| {
             Ok(this.restore_to_count(value))
         });
+
+        methods.add_method_mut("reset_matrix", |_, this, ()| Ok(this.reset_matrix()));
+        methods.add_method_mut("translate", |_, this, value: Vector| {
+            Ok(this.translate(value.x(), value.y()))
+        });
+        methods.add_method_mut("scale", |_, this, value: Vector| {
+            Ok(this.scale(value.x(), value.y()))
+        });
+        methods.add_method_mut("skew", |_, this, value: Vector| {
+            Ok(this.skew(value.x(), value.y()))
+        });
+        methods.add_method_mut("rotate_degrees", |_, this, value: f32| {
+            Ok(this.rotate_degrees(value))
+        });
+        methods.add_method_mut("rotate_radians", |_, this, value: f32| {
+            Ok(this.rotate_radians(value))
+        });
+        methods.add_method_mut(
+            "clip_rect",
+            |_, this, (rect, op, aa): (Rect, ClipOp, bool)| {
+                Ok(this.clip_rect_with_operation(&rect, op, aa))
+            },
+        );
+        methods.add_method_mut(
+            "clip_region",
+            |_, this, (region, op): (UserDataRef<Region>, ClipOp)| {
+                Ok(this.clip_region(&region, op))
+            },
+        );
         methods.add_method_mut(
             "draw_color",
             |_, this, (color, mode): (Color, BlendMode)| Ok(this.draw_color(color, mode)),
@@ -608,7 +658,7 @@ impl UserData for Canvas {
             },
         );
         methods.add_method_mut(
-            "draw_rount_rect",
+            "draw_round_rect",
             |_, this, (rect, round, paint): (Rect, Vector, UserDataRef<Paint>)| {
                 Ok(this.draw_round_rect(&rect, round.x(), round.y(), &paint))
             },
@@ -645,46 +695,12 @@ impl UserData for Canvas {
                 Ok(this.draw_image_rect(&img, &src, &dst, &SamplingOptions::LINEAR, &mut paint))
             },
         );
-        methods.add_method_mut("reset_matrix", |_, this, ()| Ok(this.reset_matrix()));
-        methods.add_method_mut(
-            "save_layer",
-            |_, this, (bounds, paint): (Option<Rect>, Option<UserDataRef<Paint>>)| {
-                Ok(this.save_layer(bounds.as_ref(), paint.as_deref()))
-            },
-        );
-        methods.add_method_mut("save", |_, this, ()| Ok(this.save()));
-        methods.add_method_mut("restore", |_, this, ()| Ok(this.restore()));
-        methods.add_method_mut("translate", |_, this, value: Vector| {
-            Ok(this.translate(value.x(), value.y()))
-        });
-        methods.add_method_mut("scale", |_, this, value: Vector| {
-            Ok(this.scale(value.x(), value.y()))
-        });
-        methods.add_method_mut("skew", |_, this, value: Vector| {
-            Ok(this.skew(value.x(), value.y()))
-        });
-        methods.add_method_mut("rotate_degrees", |_, this, value: f32| {
-            Ok(this.rotate_degrees(value))
-        });
-        methods.add_method_mut("rotate_radians", |_, this, value: f32| {
-            Ok(this.rotate_radians(value))
-        });
-        methods.add_method_mut(
-            "clip_rect",
-            |_, this, (rect, op, aa): (Rect, ClipOp, bool)| {
-                Ok(this.clip_rect_with_operation(&rect, op, aa))
-            },
-        );
-        methods.add_method_mut(
-            "clip_region",
-            |_, this, (region, op): (UserDataRef<Region>, ClipOp)| {
-                Ok(this.clip_region(&region, op))
-            },
-        );
     }
 }
 impl UserData for SkiaPath {
     fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        methods.add_method("clone", |_, this, ()| Ok(this.clone()));
+
         methods.add_method_mut("move_to", |_, this, point: Point| {
             Ok(this.move_to(point.x, point.y))
         });
@@ -693,6 +709,200 @@ impl UserData for SkiaPath {
         });
         methods.add_method_mut("quad_to", |_, this, (first, second): (Vector, Vector)| {
             Ok(this.quad_to(first.x(), first.y(), second.x(), second.y()))
+        });
+        methods.add_method_mut(
+            "conic_to",
+            |_, this, (first, second, weight): (Vector, Vector, f32)| {
+                Ok(this.conic_to(first.x(), first.y(), second.x(), second.y(), weight))
+            },
+        );
+        methods.add_method_mut(
+            "cubic_to",
+            |_, this, (first, second, third): (Vector, Vector, Vector)| {
+                Ok(this.cubic_to(
+                    first.x(),
+                    first.y(),
+                    second.x(),
+                    second.y(),
+                    third.x(),
+                    third.y(),
+                ))
+            },
+        );
+        methods.add_method_mut("rmove_to", |_, this, point: Point| {
+            Ok(this.rmove_to(point.x, point.y))
+        });
+        methods.add_method_mut("rline_to", |_, this, point: Point| {
+            Ok(this.rline_to(point.x, point.y))
+        });
+        methods.add_method_mut("rquad_to", |_, this, (first, second): (Vector, Vector)| {
+            Ok(this.rquad_to(first.x(), first.y(), second.x(), second.y()))
+        });
+        methods.add_method_mut(
+            "rconic_to",
+            |_, this, (first, second, weight): (Vector, Vector, f32)| {
+                Ok(this.rconic_to(first.x(), first.y(), second.x(), second.y(), weight))
+            },
+        );
+        methods.add_method_mut(
+            "rcubic_to",
+            |_, this, (first, second, third): (Vector, Vector, Vector)| {
+                Ok(this.rcubic_to(
+                    first.x(),
+                    first.y(),
+                    second.x(),
+                    second.y(),
+                    third.x(),
+                    third.y(),
+                ))
+            },
+        );
+        methods.add_method_mut(
+            "arc_to",
+            |_,
+             this,
+             (radius, x_axis_rotate, large_arc, sweep, end_point): (
+                Vector,
+                f32,
+                PathArcSize,
+                PathDirection,
+                Vector,
+            )| {
+                Ok(this.arc_to(
+                    radius.x(),
+                    radius.y(),
+                    x_axis_rotate,
+                    large_arc,
+                    sweep,
+                    end_point.x(),
+                    end_point.y(),
+                ))
+            },
+        );
+        methods.add_method_mut(
+            "rarc_to",
+            |_,
+             this,
+             (radius, x_axis_rotate, large_arc, sweep, end_point): (
+                Vector,
+                f32,
+                PathArcSize,
+                PathDirection,
+                Vector,
+            )| {
+                Ok(this.rarc_to(
+                    radius.x(),
+                    radius.y(),
+                    x_axis_rotate,
+                    large_arc,
+                    sweep,
+                    end_point.x(),
+                    end_point.y(),
+                ))
+            },
+        );
+        methods.add_method_mut(
+            "arc_to_with_oval",
+            |_, this, (oval, start_angle, sweep_angle, force_move_to): (Rect, f32, f32, bool)| {
+                Ok(this.arc_to_with_oval(&oval, start_angle, sweep_angle, force_move_to))
+            },
+        );
+        methods.add_method_mut(
+            "arc_to_with_points",
+            |_, this, (first, second, radius): (Vector, Vector, f32)| {
+                Ok(this.arc_to_with_points(first.x(), first.y(), second.x(), second.y(), radius))
+            },
+        );
+        methods.add_method_mut("close", |_, this, ()| Ok(this.close()));
+        methods.add_method_mut("add_rect", |_, this, (rect, dir): (Rect, PathDirection)| {
+            Ok(this.add_rect(&rect, dir))
+        });
+        methods.add_method_mut(
+            "add_rrect",
+            |_, this, (rect, dir): (UserDataRef<RRect>, PathDirection)| {
+                Ok(this.add_rrect(&rect, dir))
+            },
+        );
+        methods.add_method_mut(
+            "add_rrect_start",
+            |_, this, (rect, dir, start): (UserDataRef<RRect>, PathDirection, u32)| {
+                Ok(this.add_rrect_start(&rect, dir, start))
+            },
+        );
+        methods.add_method_mut(
+            "add_rounded_rect",
+            |_, this, (rect, radius, dir): (Rect, Vector, PathDirection)| {
+                Ok(this.add_rounded_rect(&rect, radius.x(), radius.y(), dir))
+            },
+        );
+        methods.add_method_mut("add_oval", |_, this, (rect, dir): (Rect, PathDirection)| {
+            Ok(this.add_oval(&rect, dir))
+        });
+        methods.add_method_mut(
+            "add_circle",
+            |_, this, (center, radius, dir): (Vector, f32, PathDirection)| {
+                Ok(this.add_circle(center.x(), center.y(), radius, dir))
+            },
+        );
+        methods.add_method_mut(
+            "add_arc",
+            |_, this, (rect, start_angle, sweep_angle): (Rect, f32, f32)| {
+                Ok(this.add_arc(&rect, start_angle, sweep_angle))
+            },
+        );
+        methods.add_method_mut("get_filltype", |_, this, ()| Ok(this.get_filltype()));
+        methods.add_method_mut("set_filltype", |_, this, filltype: PathFillType| {
+            Ok(this.set_filltype(filltype))
+        });
+        methods.add_method_mut("transform", |_, this, mat: UserDataRef<Matrix>| {
+            Ok(this.transform(&mat))
+        });
+        methods.add_method_mut(
+            "transform_to_dest",
+            |_, this, (mat, mut dest): (UserDataRef<Matrix>, UserDataRefMut<Self>)| {
+                Ok(this.transform_to_dest(&mat, &mut dest))
+            },
+        );
+        methods.add_method_mut(
+            "add_path_offset",
+            |_,
+             this: &mut SkiaWrapper<sk_path_t>,
+             (mut other, offset, mode): (UserDataRefMut<Self>, Vector, PathAddMode)| {
+                Ok(this.add_path_offset(&mut other, offset.x(), offset.y(), mode))
+            },
+        );
+        methods.add_method_mut(
+            "add_path_matrix",
+            |_, this: &mut SkiaWrapper<sk_path_t>, (mut other, mat, mode): (UserDataRefMut<Self>, UserDataRef<Matrix>, PathAddMode)| {
+                Ok(this.add_path_matrix(&mut other, *mat, mode))
+            },
+        );
+        methods.add_method_mut(
+            "add_path",
+            |_,
+             this: &mut SkiaWrapper<sk_path_t>,
+             (mut other, mode): (UserDataRefMut<Self>, PathAddMode)| {
+                Ok(this.add_path(&mut other, mode))
+            },
+        );
+        methods.add_method_mut(
+            "add_path_reverse",
+            |_, this: &mut SkiaWrapper<sk_path_t>, mut other: UserDataRefMut<Self>| {
+                Ok(this.add_path_reverse(&mut other))
+            },
+        );
+        methods.add_method_mut("reset", |_, this, ()| Ok(this.reset()));
+        methods.add_method_mut("rewind", |_, this, ()| Ok(this.rewind()));
+        methods.add_method_mut("count_points", |_, this, ()| Ok(this.count_points()));
+        methods.add_method_mut("count_verbs", |_, this, ()| Ok(this.count_verbs()));
+
+        methods.add_method("get_point", |_, this, index: i32| Ok(this.get_point(index)));
+        methods.add_method("get_bounds", |_, this, ()| Ok(this.get_bounds()));
+        methods.add_method("compute_tight_bounds", |_, this, ()| {
+            Ok(this.compute_tight_bounds())
+        });
+        methods.add_method("contains", |_, this, point: Vector| {
+            Ok(this.contains(point.x(), point.y()))
         });
     }
 }
@@ -713,7 +923,7 @@ impl<'lua> FromLua<'lua> for Color {
 }
 impl<'lua> IntoLua<'lua> for Color {
     fn into_lua(self, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
-        Ok(Value::Number(self.as_u32() as _))
+        Ok(Value::Number(self.as_u32() as f64))
     }
 }
 impl UserData for Region {
@@ -1126,14 +1336,8 @@ impl UserData for TextStyle {
             Ok(this.set_font_style(&value))
         });
         fields.add_field_method_get("shadow_number", |_, this| Ok(this.get_shadow_number()));
-        fields.add_field_method_set("shadow_number", |_, this, value: usize| {
-            Ok(this.set_shadow_number(value))
-        });
         fields.add_field_method_get("font_feature_number", |_, this| {
             Ok(this.get_font_feature_number())
-        });
-        fields.add_field_method_set("font_feature_number", |_, this, value: usize| {
-            Ok(this.set_font_feature_number(value))
         });
 
         fields.add_field_method_get("font_size", |_, this| Ok(this.get_font_size()));
@@ -1162,30 +1366,6 @@ impl UserData for TextStyle {
         fields.add_field_method_set("word_spacing", |_, this, value: f32| {
             Ok(this.set_word_spacing(value))
         });
-        fields.add_field_method_get("font_feature_number", |_, this| {
-            Ok(this.get_font_feature_number())
-        });
-        fields.add_field_method_set("font_feature_number", |_, this, value: usize| {
-            Ok(this.set_font_feature_number(value))
-        });
-        fields.add_field_method_get("font_feature_number", |_, this| {
-            Ok(this.get_font_feature_number())
-        });
-        fields.add_field_method_set("font_feature_number", |_, this, value: usize| {
-            Ok(this.set_font_feature_number(value))
-        });
-        fields.add_field_method_get("font_feature_number", |_, this| {
-            Ok(this.get_font_feature_number())
-        });
-        fields.add_field_method_set("font_feature_number", |_, this, value: usize| {
-            Ok(this.set_font_feature_number(value))
-        });
-        fields.add_field_method_get("font_feature_number", |_, this| {
-            Ok(this.get_font_feature_number())
-        });
-        fields.add_field_method_set("font_feature_number", |_, this, value: usize| {
-            Ok(this.set_font_feature_number(value))
-        });
     }
 
     fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
@@ -1204,12 +1384,17 @@ impl UserData for Paint {
         fields.add_field_method_set("antialias", |_, p, antialias: bool| {
             Ok(p.set_antialias(antialias))
         });
+
         fields.add_field_method_get("color", |_, this| Ok(this.get_color()));
         fields.add_field_method_set("color", |_, this, c: Color| Ok(this.set_color(c)));
+
         fields.add_field_method_get("stroke_width", |_, p| Ok(p.get_stroke_width()));
         fields.add_field_method_set("stroke_width", |_, p, value: f32| {
             Ok(p.set_stroke_width(value))
         });
+
+        fields.add_field_method_get("style", |_, p| Ok(p.get_style()));
+        fields.add_field_method_set("style", |_, p, value: PaintStyle| Ok(p.set_style(value)));
 
         fields.add_field_method_get("stroke_miter", |_, p| Ok(p.get_stroke_miter()));
         fields.add_field_method_set("stroke_miter", |_, p, value: f32| {
@@ -1227,12 +1412,14 @@ impl UserData for Paint {
         fields.add_field_method_get("dither", |_, p| Ok(p.is_dither()));
         fields.add_field_method_set("dither", |_, p, value: bool| Ok(p.set_dither(value)));
 
+        fields.add_field_method_get("blendmode", |_, p| Ok(p.get_blendmode()));
         fields.add_field_method_set("blendmode", |_, p, value: BlendMode| {
             Ok(p.set_blendmode(value))
         });
     }
 
     fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        // all of these could be fields too, but their getters take paint by mut ref :( which won't work
         methods.add_method_mut("get_shader", |_, this, ()| Ok(this.get_shader()));
         methods.add_method_mut(
             "set_shader",
@@ -1270,6 +1457,7 @@ impl UserData for Paint {
             },
         );
         methods.add_method_mut("reset", |_, this, ()| Ok(this.reset()));
+        methods.add_method_mut("clone", |_, this, ()| Ok(this.clone()));
     }
 }
 
@@ -1278,6 +1466,7 @@ impl UserData for MaskFilter {}
 impl UserData for ColorFilter {}
 impl UserData for PathEffect {}
 impl UserData for ImageFilter {}
+/*
 const NAMED_COLORS: &[(&str, u32)] = &[
     ("aliceBlue", 0xF0F8FF),
     ("antiqueWhite", 0xFAEBD7),
@@ -1420,6 +1609,7 @@ const NAMED_COLORS: &[(&str, u32)] = &[
     ("yellow", 0xFFFF00),
     ("yellowGreen", 0x9ACD3),
 ];
+*/
 use super::bindings::*;
 fn value_as_numerical(value: &Value) -> Option<f64> {
     match value {

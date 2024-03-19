@@ -6,13 +6,13 @@ mod helper;
 pub fn main() {
     use ckia::{canvas::Canvas, Color};
     use mlua::Function;
-
+    let lua_code = std::fs::read_to_string("./examples/code.luau").unwrap();
     let mut load = false;
     helper::HelperContext::new([800, 600]).enter_event_loop(|htx| {
         let HelperContext { lua, surface, .. } = htx;
         if !load {
             load = true;
-            lua.load(include_str!("code.luau")).exec().unwrap();
+            lua.load(&lua_code).exec().unwrap();
         }
         let mut surface_canvas = surface.get_canvas();
         let canvas = surface_canvas.as_mut();

@@ -139,6 +139,14 @@ impl HelperContext {
         #[cfg(feature = "mlua")]
         let lua = {
             let lua = Lua::new();
+            #[cfg(debug_assertions)]
+            {
+                lua.set_compiler(
+                    mlua::Compiler::new()
+                        .set_coverage_level(1)
+                        .set_debug_level(2),
+                );
+            }
             let ckia_table = ckia::lua::add_bindings(&lua).unwrap();
             lua.globals().set("ckia", ckia_table);
             lua

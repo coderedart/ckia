@@ -176,10 +176,10 @@ impl SkiaPath {
     pub fn rewind(&mut self) {
         unsafe { sk_path_rewind(self.inner) }
     }
-    pub fn sk_path_count_points(&self) -> i32 {
+    pub fn count_points(&self) -> i32 {
         unsafe { sk_path_count_points(self.inner) }
     }
-    pub fn sk_path_count_verbs(&self) -> i32 {
+    pub fn count_verbs(&self) -> i32 {
         unsafe { sk_path_count_verbs(self.inner) }
     }
     pub fn get_point(&self, index: i32) -> Point {

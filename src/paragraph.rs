@@ -152,16 +152,7 @@ impl TextStyle {
             tl_text_style_set_font_style(self.as_ptr_mut(), value.as_ptr());
         }
     }
-    pub fn set_shadow_number(&mut self, value: usize) {
-        unsafe {
-            tl_text_style_set_shadow_number(self.as_ptr_mut(), value);
-        }
-    }
-    pub fn set_font_feature_number(&mut self, value: usize) {
-        unsafe {
-            tl_text_style_set_font_feature_number(self.as_ptr_mut(), value);
-        }
-    }
+
     pub fn set_font_size(&mut self, value: f32) {
         unsafe {
             tl_text_style_set_font_size(self.as_ptr_mut(), value);

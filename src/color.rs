@@ -98,9 +98,56 @@ impl Color {
         color |= b as u32;
         Self(color)
     }
+    /// split into a, r, g, b components in that order
+    pub const fn into_components(&self) -> [u8; 4] {
+        self.0.to_be_bytes()
+    }
+    pub const fn get_alpha(&self) -> u8 {
+        self.into_components()[0]
+    }
+    pub const fn get_red(&self) -> u8 {
+        self.into_components()[1]
+    }
+    pub const fn get_green(&self) -> u8 {
+        self.into_components()[2]
+    }
+    pub const fn get_blue(&self) -> u8 {
+        self.into_components()[3]
+    }
+    pub fn set_alpha(&mut self, value: u8) {
+        let [_, r, g, b] = self.into_components();
+        *self = Self::new(value, r, g, b);
+    }
+    pub fn set_red(&mut self, value: u8) {
+        let [a, _, g, b] = self.into_components();
+        *self = Self::new(a, value, g, b);
+    }
+    pub fn set_green(&mut self, value: u8) {
+        let [a, r, _, b] = self.into_components();
+        *self = Self::new(a, r, value, b);
+    }
+    pub fn set_blue(&mut self, value: u8) {
+        let [a, r, g, _] = self.into_components();
+        *self = Self::new(a, r, g, value);
+    }
+    pub fn with_alpha(&self, value: u8) -> Self {
+        let [_, r, g, b] = self.into_components();
+        Self::new(value, r, g, b)
+    }
+    pub fn with_red(&self, value: u8) -> Self {
+        let [a, _, g, b] = self.into_components();
+        Self::new(a, value, g, b)
+    }
+    pub fn with_green(&self, value: u8) -> Self {
+        let [a, r, _, b] = self.into_components();
+        Self::new(a, r, value, b)
+    }
+    pub fn with_blue(&self, value: u8) -> Self {
+        let [a, r, g, _] = self.into_components();
+        Self::new(a, r, g, value)
+    }
     pub const fn from_u32(color: u32) -> Self {
-        let bytes = color.to_ne_bytes();
-        Self::new(bytes[0], bytes[1], bytes[2], bytes[3])
+        Self(color)
     }
     pub const fn as_u32(&self) -> u32 {
         self.0

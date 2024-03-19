@@ -1,3 +1,4 @@
+use crate::filter::ImageFilter;
 use crate::{bindings::*, SkiaOptPtr};
 
 use crate::{
@@ -122,8 +123,23 @@ impl Canvas {
     pub fn save(&mut self) -> i32 {
         unsafe { sk_canvas_save(self.as_ptr_mut()) }
     }
-    pub fn save_layer(&mut self, rect: Option<&Rect>, paint: Option<&Paint>) -> i32 {
-        unsafe { sk_canvas_save_layer(self.as_ptr_mut(), rect.or_null(), paint.or_null()) }
+    /// if `init_with_previous_layer` is true, the new layer will copy the contents of the older layer.
+    pub fn save_layer(
+        &mut self,
+        rect: Option<&Rect>,
+        paint: Option<&Paint>,
+        backdrop: Option<&ImageFilter>,
+        init_with_previous_layer: bool,
+    ) -> i32 {
+        unsafe {
+            sk_canvas_save_layer(
+                self.as_ptr_mut(),
+                rect.or_null(),
+                paint.or_null(),
+                backdrop.or_null(),
+                init_with_previous_layer.then_some(4).unwrap_or_default(),
+            )
+        }
     }
     pub fn restore(&mut self) {
         unsafe { sk_canvas_restore(self.as_ptr_mut()) }
