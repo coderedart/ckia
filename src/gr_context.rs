@@ -201,45 +201,51 @@ where
     }
 }
 
-/*
+// unsafe impl crate::FfiDrop for gr_backendtexture_t {
+//     unsafe fn ffi_drop(this: *mut Self) {
+//         gr_backendtexture_delete(this)
+//     }
+// }
+pub struct BackendTexture {
+    inner: *mut gr_backendtexture_t,
+    drop_fn: Option<Box<dyn FnOnce()>>,
+}
 
-pub fn gr_vk_extensions_new() -> *mut gr_vk_extensions_t;
-pub fn gr_vk_extensions_delete(extensions: *mut gr_vk_extensions_t);
-pub fn gr_vk_extensions_init(
-    extensions: *mut gr_vk_extensions_t,
-    getProc: gr_vk_get_proc,
-    userData: *mut ::std::os::raw::c_void,
-    instance: *mut vk_instance_t,
-    physDev: *mut vk_physical_device_t,
-    instanceExtensionCount: u32,
-    instanceExtensions: *mut *const ::std::os::raw::c_char,
-    deviceExtensionCount: u32,
-    deviceExtensions: *mut *const ::std::os::raw::c_char,
-);
-pub fn gr_vk_extensions_has_extension(
-    extensions: *mut gr_vk_extensions_t,
-    ext: *const ::std::os::raw::c_char,
-    minVersion: u32,
-) -> bool;
-*/
-crate::skia_wrapper!(
-    unique,
-    BackendTexture,
-    gr_backendtexture_t,
-    gr_backendtexture_delete
-);
-impl BackendTexture {
-    pub fn new_gl(width: i32, height: i32, mipmapped: bool, info: &GlTextureInfo) -> Self {
+#[cfg(feature = "unsafe_send")]
+unsafe impl Send for BackendTexture {}
+#[cfg(feature = "unsafe_send")]
+unsafe impl Sync for BackendTexture {}
+
+impl Drop for BackendTexture {
+    fn drop(&mut self) {
         unsafe {
-            Self::from_owned_ptr(gr_backendtexture_new_gl(
-                width,
-                height,
-                mipmapped,
-                info.as_ptr(),
-            ))
+            gr_backendtexture_delete(self.inner);
+        }
+        if let Some(drop_fn) = self.drop_fn.take() {
+            drop_fn();
         }
     }
-
+}
+impl BackendTexture {
+    pub fn new_gl(
+        width: i32,
+        height: i32,
+        mipmapped: bool,
+        info: &GlTextureInfo,
+        drop_fn: Option<Box<dyn FnOnce()>>,
+    ) -> Option<Self> {
+        unsafe {
+            let inner = gr_backendtexture_new_gl(width, height, mipmapped, info.as_ptr());
+            if inner.is_null() {
+                None
+            } else {
+                Some(Self { inner, drop_fn })
+            }
+        }
+    }
+    pub(crate) fn as_ptr(&self) -> *mut gr_backendtexture_t {
+        self.inner
+    }
     /*
 
     pub fn gr_backendtexture_new_vulkan(

@@ -1,5 +1,8 @@
 #![allow(unused)]
-use std::ffi::{c_void, CStr};
+use std::{
+    ffi::{c_void, CStr},
+    sync::Arc,
+};
 
 use ckia::{
     color::ColorSpace,
@@ -14,7 +17,6 @@ use ckia::{
     typeface::{FontMgr, Typeface},
     BlendMode, BlurStyle, Color, ColorType, GlFramebufferInfo, PaintStyle, PixelGeometry, Rect,
     StrokeCap, StrokeJoin, SurfaceOrigin, VirtualRefCounted,
-    
 };
 use glfw::{Context, Glfw, GlfwReceiver, PWindow, WindowEvent};
 use glow::HasContext;
@@ -44,13 +46,17 @@ extern "C" fn get_proc_addr(ctx: *mut c_void, sym: *const i8) -> Option<unsafe e
 }
 fn create_window(size: [u32; 2]) -> (Glfw, PWindow, GlfwReceiver<(f64, WindowEvent)>) {
     let mut gtx = glfw::init(glfw::fail_on_errors).expect("failed to init glfw");
-    gtx.window_hint(glfw::WindowHint::ContextCreationApi(
-        glfw::ContextCreationApi::Egl,
+    gtx.window_hint(glfw::WindowHint::OpenGlProfile(
+        glfw::OpenGlProfileHint::Core,
     ));
-    gtx.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
+    gtx.window_hint(glfw::WindowHint::ContextVersion(4, 6));
+    // gtx.window_hint(glfw::WindowHint::ContextCreationApi(
+    //     glfw::ContextCreationApi::Egl,
+    // ));
+    // gtx.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
     gtx.window_hint(glfw::WindowHint::SRgbCapable(true));
     gtx.window_hint(glfw::WindowHint::StencilBits(Some(8)));
-    gtx.window_hint(glfw::WindowHint::Samples(Some(0)));
+    // gtx.window_hint(glfw::WindowHint::Samples(Some(0)));
     gtx.window_hint(glfw::WindowHint::ScaleToMonitor(true));
     let (mut window, event_receiver) = gtx
         .create_window(
@@ -93,14 +99,16 @@ fn create_render_target_and_surface(
             &GlFramebufferInfo::new(id as _, glow::SRGB8_ALPHA8, false),
         )
     };
-    let surface = Surface::new_backend_render_target(
-        gl_direct_context.as_mut(),
-        &render_target,
-        SurfaceOrigin::BOTTOM_LEFT_GR_SURFACE_ORIGIN,
-        ColorType::SRGBA_8888_SK_COLORTYPE,
-        &mut cs,
-        &props,
-    );
+    let surface = unsafe {
+        Surface::new_backend_render_target(
+            gl_direct_context.as_mut(),
+            &render_target,
+            SurfaceOrigin::BOTTOM_LEFT_GR_SURFACE_ORIGIN,
+            ColorType::SRGBA_8888_SK_COLORTYPE,
+            &mut cs,
+            &props,
+        )
+    };
     (render_target, surface)
 }
 pub struct HelperContext {
@@ -115,7 +123,7 @@ pub struct HelperContext {
     pub render_target: BackendRenderTarget,
     pub gl_direct_context: DirectContext,
     pub gl_interface: GlInterface,
-    pub glow_context: glow::Context,
+    pub glow_context: Arc<glow::Context>,
     pub events_receiver: GlfwReceiver<(f64, WindowEvent)>,
     pub window: PWindow,
     pub glfw_context: Glfw,
@@ -125,8 +133,11 @@ impl HelperContext {
     pub fn new(window_width_height: [u32; 2]) -> Self {
         let (glfw_context, mut window, events_receiver) = create_window(window_width_height);
         let (sx, sy) = window.get_content_scale();
-        let glow_context =
-            unsafe { glow::Context::from_loader_function(|s| window.get_proc_address(s)) };
+        let glow_context = unsafe {
+            Arc::new(glow::Context::from_loader_function(|s| {
+                window.get_proc_address(s)
+            }))
+        };
         let (gl_interface, mut gl_direct_context) =
             create_gl_interface_and_direct_context(&mut window);
         let (render_target, mut surface) =
@@ -211,13 +222,13 @@ impl HelperContext {
             }
             self.events = events;
             let mut surface_canvas = self.surface.get_canvas();
-            let save_count = surface_canvas.as_mut().save();
-            surface_canvas.as_mut().scale(self.scale[0], self.scale[1]);
+            // let save_count = surface_canvas.as_mut().save();
+            // surface_canvas.as_mut().scale(self.scale[0], self.scale[1]);
             painting_fn(&mut self);
-            self.surface
-                .get_canvas()
-                .as_mut()
-                .restore_to_count(save_count);
+            // self.surface
+            //     .get_canvas()
+            //     .as_mut()
+            //     .restore_to_count(save_count);
             self.gl_direct_context.flush_and_submit(false);
             self.window.swap_buffers();
         }

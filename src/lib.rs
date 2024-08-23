@@ -77,9 +77,15 @@ pub fn init() {
 #[cfg(not(windows))]
 pub fn init() {}
 
+#[derive(Debug)]
+#[cfg_attr(feature = "reflect", derive(bevy_reflect::Reflect))]
+#[cfg_attr(feature = "reflect", reflect(where T: RefCounted))]
+#[cfg_attr(feature = "reflect", reflect(from_reflect = false))]
 pub struct SkiaWrapper<T: FfiDrop> {
+    #[cfg_attr(feature = "reflect", reflect(ignore))]
     inner: *mut T,
 }
+
 impl<T: FfiDrop> Drop for SkiaWrapper<T> {
     fn drop(&mut self) {
         unsafe { crate::FfiDrop::ffi_drop(self.inner) }
@@ -142,8 +148,8 @@ impl<T: FfiDrop> SkiaOptPtrMut<T> for Option<&mut SkiaWrapper<T>> {
         }
     }
 }
-
-pub unsafe trait VirtualRefCounted {
+pub trait RefCounted {}
+pub unsafe trait VirtualRefCounted: RefCounted {
     fn as_vref_ptr(&self) -> *const sk_refcnt_t;
     fn as_vref_ptr_mut(&mut self) -> *mut sk_refcnt_t;
     fn is_unique(&self) -> bool;
@@ -151,7 +157,7 @@ pub unsafe trait VirtualRefCounted {
     fn safe_ref(&mut self) -> Self;
     fn safe_unref(self);
 }
-pub unsafe trait NotVirtualRefCounted {
+pub unsafe trait NotVirtualRefCounted: RefCounted {
     fn as_nvref_ptr(&self) -> *const sk_nvrefcnt_t;
     fn as_nvref_ptr_mut(&mut self) -> *mut sk_nvrefcnt_t;
     fn is_unique(&self) -> bool;
@@ -185,6 +191,7 @@ macro_rules! pod_struct {
     }) => {
         /*
         #[derive(Debug, Copy, Clone)]
+        #[cfg_attr(feature = "reflect", derive(bevy_reflect::Reflect))]
         #[repr(C)]
         $svis struct $name {
             $($vis $field : $fty,)+
@@ -298,6 +305,8 @@ pub(crate) use pod_struct;
 macro_rules! skia_wrapper {
     (refcnt, $name: ident, $opaque: ident,$unref: ident $(, $ref: ident)? ) => {
         crate::skia_wrapper!(shared, $name, $opaque, $unref $(, $ref)?);
+        impl crate::RefCounted for $opaque {}
+        impl crate::RefCounted for $name {}
         unsafe impl crate::VirtualRefCounted for $name {
             fn as_vref_ptr(&self) -> *const sk_refcnt_t {
                 self.as_ptr() as _
@@ -324,6 +333,7 @@ macro_rules! skia_wrapper {
     };
     (nvrefcnt, $name: ident, $opaque: ident,$unref: ident $(, $ref: ident)? ) => {
         crate::skia_wrapper!(shared, $name, $opaque, $unref $(, $ref)?);
+        impl crate::RefCounted for $name {}
         unsafe impl crate::NotVirtualRefCounted for $name {
             fn as_nvref_ptr(&self) -> *const sk_nvrefcnt_t {
                 self.as_ptr() as _
@@ -373,15 +383,17 @@ macro_rules! skia_wrapper {
             )*
         }
     };
-    (unique, $name: ident, $opaque: ident, $del: ident) => {
+    (unique, $name: ident, $opaque: ident, $del: ident ) => {
         pub type $name = crate::SkiaWrapper<$opaque>;
+        #[cfg(feature = "unsafe_send")]
+        unsafe impl Send for $name {}
+        #[cfg(feature = "unsafe_send")]
+        unsafe impl Sync for $name {}
         unsafe impl crate::FfiDrop for $opaque {
             unsafe fn ffi_drop(this: *mut Self) {
                 $del(this)
             }
         }
-
-
     };
 }
 /// A convenience wrapper that implements some repetitive code for skia objects which are uniquely owned (eg: allocated on heap using new and delete)

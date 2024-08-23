@@ -560,7 +560,7 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
             )?,
         )?;
     }
-
+    assert!(!CKIA_LUA_SETUP.is_empty());
     lua.load(CKIA_LUA_SETUP).call(&table)?;
     table.set_readonly(true);
     Ok(table)
@@ -677,6 +677,33 @@ impl UserData for Canvas {
                 Ok(this.draw_rect(&rect, &mut paint))
             },
         );
+        methods.add_method_mut(
+            "draw_simple_rect",
+            |_, this, (left_top, right_bottom, mut paint): (Vector, Vector, UserDataRefMut<Paint>)| {
+                let rect = Rect::new(left_top.x(), left_top.y(), right_bottom.x(), right_bottom.y());
+                Ok(this.draw_rect(&rect, &mut paint))
+            },
+        );
+        methods.add_method_mut(
+            "draw_simple_round_rect",
+            |_,
+             this,
+             (left_top, right_bottom, round, paint): (
+                Vector,
+                Vector,
+                Vector,
+                UserDataRef<Paint>,
+            )| {
+                let rect = Rect::new(
+                    left_top.x(),
+                    left_top.y(),
+                    right_bottom.x(),
+                    right_bottom.y(),
+                );
+                Ok(this.draw_round_rect(&rect, round.x(), round.y(), &paint))
+            },
+        );
+        // convenience function to avoid rect "gc" objects every time you draw a round rect
         methods.add_method_mut(
             "draw_round_rect",
             |_, this, (rect, round, paint): (Rect, Vector, UserDataRef<Paint>)| {

@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 
 use crate::bindings::*;
 use crate::{
@@ -8,6 +9,49 @@ use crate::{
     paint::Paint,
     ColorType, ImageInfo, PixelGeometry, SurfaceOrigin,
 };
+/// A surface backed by a GPU texture
+pub struct TextureSurface {
+    surface: Surface,
+    _tex: BackendTexture,
+}
+impl TextureSurface {
+    pub fn new_backend_texture(
+        context: &mut GrRecordingContext,
+        texture: BackendTexture,
+        origin: SurfaceOrigin,
+        samples: i32,
+        ct: ColorType,
+        cs: &mut ColorSpace,
+        props: &SurfaceProps,
+    ) -> Option<Self> {
+        unsafe {
+            let surf = Surface::try_from_owned_ptr(sk_surface_new_backend_texture(
+                context.as_ptr_mut(),
+                texture.as_ptr(),
+                origin,
+                samples,
+                ct,
+                cs.as_ptr_mut(),
+                props.as_ptr(),
+            ))?;
+            Some(Self {
+                surface: surf,
+                _tex: texture,
+            })
+        }
+    }
+}
+impl Deref for TextureSurface {
+    type Target = Surface;
+    fn deref(&self) -> &Self::Target {
+        &self.surface
+    }
+}
+impl DerefMut for TextureSurface {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.surface
+    }
+}
 crate::skia_wrapper!(refcnt, Surface, sk_surface_t, sk_surface_unref);
 
 impl Surface {
@@ -32,28 +76,8 @@ impl Surface {
         context: *mut ::std::os::raw::c_void,
         props: *const sk_surfaceprops_t,
     ) -> *mut sk_surface_t; */
-    pub fn new_backend_texture(
-        context: &mut GrRecordingContext,
-        texture: &BackendTexture,
-        origin: SurfaceOrigin,
-        samples: i32,
-        ct: ColorType,
-        cs: &mut ColorSpace,
-        props: &SurfaceProps,
-    ) -> Self {
-        unsafe {
-            Self::from_owned_ptr(sk_surface_new_backend_texture(
-                context.as_ptr_mut(),
-                texture.as_ptr(),
-                origin,
-                samples,
-                ct,
-                cs.as_ptr_mut(),
-                props.as_ptr(),
-            ))
-        }
-    }
-    pub fn new_backend_render_target(
+
+    pub unsafe fn new_backend_render_target(
         context: &mut GrRecordingContext,
         render_target: &BackendRenderTarget,
         origin: SurfaceOrigin,
@@ -138,7 +162,8 @@ impl Surface {
           bounds: *const sk_irect_t,
       ) -> *mut sk_image_t;
     */
-    pub fn draw(&mut self, canvas: &mut Canvas, x: f32, y: f32, paint: &Paint) {
+    /// Draws this surface to the target `canvas` at position `x` and `y`
+    pub fn draw_to(&mut self, canvas: &mut Canvas, x: f32, y: f32, paint: &Paint) {
         unsafe { sk_surface_draw(self.as_ptr_mut(), canvas.as_ptr_mut(), x, y, paint.as_ptr()) };
     }
     /*

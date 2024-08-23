@@ -10,6 +10,13 @@ impl Default for Region {
         unsafe { Self::from_owned_ptr(sk_region_new()) }
     }
 }
+impl Clone for Region {
+    fn clone(&self) -> Self {
+        let mut new_region = Self::default();
+        new_region.set_region(self);
+        new_region
+    }
+}
 impl Region {
     pub fn is_empty(&self) -> bool {
         unsafe { sk_region_is_empty(self.as_ptr()) }

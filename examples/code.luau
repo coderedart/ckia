@@ -33,6 +33,7 @@ do
 end
 local only_shadow = ckia.new_drop_shadow_only_imagefilter(2.0, 2.0, 5, 5, trans_black)
 
+local pb
 local para
 do
 	-- Paragraph requires a lot of setup
@@ -56,7 +57,7 @@ do
 	-- set the text style as the paragraph's roo textstyle
 	ps.text_style = ts
 	-- create builder with para style and font collection. This can be reused by simply calling reset, so no need to hold on to fc/ps/ts vars
-	local pb = ckia.new_paragraph_builder(ps, fc)
+	pb = ckia.new_paragraph_builder(ps, fc)
 	-- with the default root text style, lets add this text
 	pb:add_text("Hello Ckia Luau")
 	-- build the paragraph. you can throw away builder or reuse it to build another para
@@ -86,7 +87,7 @@ local inner_rect = ckia.rect.new(125, 125, 50, 50)
 
 -- lets set the shader and filter on the paint struct
 -- This function will be called by the script example of rust and we will get canvas as an argument (it will be destroyed by host, so DO NOT STORE IT)
-function tick(canvas: Canvas)
+function tick(canvas: Canvas, host_data: any)
 	-- dark rect serves as a nice background and contrasts the gradient filled circle
 	paint.color = background_color
 	paint.style = ckia.enums.paintStyle.fill
@@ -116,7 +117,14 @@ function tick(canvas: Canvas)
 	end
 	canvas:restore()
 	-- paint the paragraph as many times you want
+	-- [[
 	para:paint(canvas, ckia.new_vec2(50, 160))
+	pb:reset()
+	pb:add_text(host_data.frame_time)
+	local frame_time = pb:build()
+	frame_time:layout(150)
+	frame_time:paint(canvas, ckia.new_vec2(0))
+	-- ]]
 end
 
 return tick

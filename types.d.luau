@@ -1023,7 +1023,9 @@ declare class Canvas
     function draw_line(self, from: Vec2, to: Vec2, paint: Paint): nil
     function draw_paint(self, paint: Paint): nil
     function draw_rect(self, rect: Rect, paint: Paint): nil
+    function draw_simple_rect(self, left_top: Vec2, right_bottom: Vec2, paint: Paint): nil
     function draw_round_rect(self, rect: Rect, corner_radius: Vec2, paint: Paint): nil
+    function draw_simple_round_rect(self, left_top: Vec2, right_bottom: Vec2, corner_radius: Vec2, paint: Paint): nil
     function draw_circle(self, center: Vec2, radius: number, paint: Paint): nil
     function draw_path(self, path: SkiaPath, paint: Paint): nil
     function draw_image(self, img: Image, point: Vec2, paint: Paint): nil
