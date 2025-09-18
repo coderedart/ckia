@@ -5,12 +5,12 @@ use crate::bindings::*;
 use crate::*;
 
 crate::skia_wrapper!(
-    unique,
+    refcnt,
     GrRecordingContext,
     gr_recording_context_t,
     gr_recording_context_unref
 );
-impl GrRecordingContext {
+impl<O: OwnerShip + MutabilityMarker> GrRecordingContextGen<O> {
     pub fn get_max_surface_sample_count_for_color_type(&mut self, color_type: ColorType) -> i32 {
         unsafe {
             gr_recording_context_get_max_surface_sample_count_for_color_type(

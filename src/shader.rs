@@ -1,4 +1,4 @@
-use crate::{bindings::*, SkiaOptPtr};
+use crate::{bindings::*, OwnerShip, SkiaOptPtr, SkiaPtr};
 
 use crate::{
     color::ColorSpace, filter::ColorFilter, skia_wrapper, BlendMode, Color, Color4f, Matrix, Point,
@@ -6,28 +6,27 @@ use crate::{
 };
 
 skia_wrapper!(refcnt, Shader, sk_shader_t, sk_shader_unref, sk_shader_ref);
-
-impl Shader {
+impl<O: OwnerShip> ShaderGen<O> {
     /*
     pub fn sk_shader_with_local_matrix(
         shader: *const sk_shader_t,
         localMatrix: *const sk_matrix_t,
     ) -> *mut sk_shader_t;
     */
-    pub fn with_color_filter(&self, filter: &ColorFilter) -> Self {
-        unsafe { Self::from_owned_ptr(sk_shader_with_color_filter(self.inner, filter.inner)) }
+    pub fn with_color_filter(&self, filter: &ColorFilter) -> Shader {
+        unsafe { Self::from_owned_ptr(sk_shader_with_color_filter(self.as_ptr(), filter.inner)) }
     }
-    pub fn new_empty() -> Self {
+    pub fn new_empty() -> Shader {
         unsafe { Self::from_owned_ptr(sk_shader_new_empty()) }
     }
-    pub fn new_color(color: Color) -> Self {
+    pub fn new_color(color: Color) -> Shader {
         unsafe { Self::from_owned_ptr(sk_shader_new_color(color.0)) }
     }
-    pub fn new_color4f(color: &Color4f, space: &ColorSpace) -> Self {
+    pub fn new_color4f(color: &Color4f, space: &ColorSpace) -> Shader {
         unsafe { Self::from_owned_ptr(sk_shader_new_color4f(color.as_ptr(), space.inner)) }
     }
-    pub fn new_blend(mode: BlendMode, dst: &Self, src: &Self) -> Self {
-        unsafe { Self::from_owned_ptr(sk_shader_new_blend(mode, dst.inner, src.inner)) }
+    pub fn new_blend(mode: BlendMode, dst: &Self, src: &Self) -> Shader {
+        unsafe { Self::from_owned_ptr(sk_shader_new_blend(mode, dst.as_ptr(), src.as_ptr())) }
     }
     pub fn new_linear_gradient(
         points: &[Point; 2],
@@ -35,7 +34,7 @@ impl Shader {
         color_positions: Option<&[f32]>,
         tile_mode: ShaderTileMode,
         matrix: Option<&Matrix>,
-    ) -> Self {
+    ) -> Shader {
         if let Some(color_positions) = color_positions {
             assert_eq!(colors.len(), color_positions.len());
         }
@@ -59,7 +58,7 @@ impl Shader {
         color_positions: Option<&[f32]>,
         tile_mode: ShaderTileMode,
         matrix: Option<&Matrix>,
-    ) -> Self {
+    ) -> Shader {
         if let Some(color_positions) = color_positions {
             assert_eq!(colors.len(), color_positions.len());
         }

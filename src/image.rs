@@ -1,4 +1,4 @@
-use crate::bindings::*;
+use crate::{bindings::*, IRect, SkiaOptPtrMut};
 use crate::{
     bitmap::BitMap,
     color::ColorSpace,
@@ -8,6 +8,7 @@ use crate::{
     shader::Shader,
     AlphaType, ColorType, Matrix, SamplingOptions, ShaderTileMode,
 };
+use crate::{SkiaPtr, SkiaPtrMut};
 
 use crate::ImageInfo;
 
@@ -154,12 +155,16 @@ impl Image {
         cimage: *const sk_image_t,
         subset: *const sk_irect_t,
     ) -> *mut sk_image_t;
-    pub fn sk_image_make_subset(
-        cimage: *const sk_image_t,
-        context: *mut gr_direct_context_t,
-        subset: *const sk_irect_t,
-    ) -> *mut sk_image_t;
     */
+    pub fn make_subset(&self, ctx: Option<&mut DirectContext>, subset: &IRect) -> Option<Self> {
+        unsafe {
+            Self::try_from_owned_ptr(sk_image_make_subset(
+                self.as_ptr(),
+                ctx.or_null_mut(),
+                subset.as_ptr(),
+            ))
+        }
+    }
     pub fn make_texture_image(
         &self,
         ctx: &mut DirectContext,

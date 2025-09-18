@@ -1,7 +1,9 @@
+use crate::{SkiaPtr, SkiaPtrMut};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-use crate::bindings::*;
+use crate::image::Image;
+use crate::{bindings::*, IRect};
 use crate::{
     canvas::Canvas,
     color::ColorSpace,
@@ -141,7 +143,7 @@ impl Surface {
         // hack to bind the lifetime of canvas to surface
         #[repr(transparent)]
         struct SurfaceCanvas<'a>(*mut sk_canvas_t, PhantomData<&'a mut Self>);
-        impl<'a> AsMut<Canvas> for SurfaceCanvas<'a> {
+        impl AsMut<Canvas> for SurfaceCanvas<'_> {
             fn as_mut(&mut self) -> &mut Canvas {
                 unsafe { std::mem::transmute(&mut self.0) }
             }
@@ -152,20 +154,22 @@ impl Surface {
             SurfaceCanvas(ptr, PhantomData)
         }
     }
-
-    /*
-
-
-      pub fn sk_surface_new_image_snapshot(arg1: *mut sk_surface_t) -> *mut sk_image_t;
-      pub fn sk_surface_new_image_snapshot_with_crop(
-          surface: *mut sk_surface_t,
-          bounds: *const sk_irect_t,
-      ) -> *mut sk_image_t;
-    */
+    pub fn new_image_snapshot(&mut self) -> Option<Image> {
+        unsafe { Image::try_from_owned_ptr(sk_surface_new_image_snapshot(self.as_ptr_mut())) }
+    }
+    pub fn new_image_snapshot_with_crop(&mut self, bounds: &IRect) -> Option<Image> {
+        unsafe {
+            Image::try_from_owned_ptr(sk_surface_new_image_snapshot_with_crop(
+                self.as_ptr_mut(),
+                bounds.as_ptr(),
+            ))
+        }
+    }
     /// Draws this surface to the target `canvas` at position `x` and `y`
     pub fn draw_to(&mut self, canvas: &mut Canvas, x: f32, y: f32, paint: &Paint) {
         unsafe { sk_surface_draw(self.as_ptr_mut(), canvas.as_ptr_mut(), x, y, paint.as_ptr()) };
     }
+
     /*
        pub fn sk_surface_peek_pixels(surface: *mut sk_surface_t, pixmap: *mut sk_pixmap_t) -> bool;
        pub fn sk_surface_read_pixels(

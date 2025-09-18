@@ -1,4 +1,5 @@
 use crate::bindings::*;
+use crate::{SkiaPtr, SkiaPtrMut};
 
 use crate::Rect;
 

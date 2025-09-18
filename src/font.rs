@@ -5,6 +5,7 @@ use crate::{
     paint::Paint, path::SkiaPath, typeface::Typeface, FontEdging, FontHinting, FontMetrics, Point,
     Rect, TextEncoding,
 };
+use crate::{SkiaPtr, SkiaPtrMut};
 
 crate::skia_wrapper!(unique, Font, sk_font_t, sk_font_delete);
 

@@ -2401,6 +2401,14 @@ extern "C" {
         ccanvas: *mut sk_canvas_t,
         cbounds: *mut sk_irect_t,
     ) -> bool;
+    pub fn sk_canvas_make_surface(
+        ccanvas: *mut sk_canvas_t,
+        cinfo: *const sk_imageinfo_t,
+        props: *const sk_surfaceprops_t,
+    ) -> *mut sk_surface_t;
+    pub fn sk_canvas_get_recording_context(
+        ccanvas: *mut sk_canvas_t,
+    ) -> *mut gr_recording_context_t;
     pub fn sk_canvas_save(ccanvas: *mut sk_canvas_t) -> ::std::os::raw::c_int;
     pub fn sk_canvas_save_layer(
         ccanvas: *mut sk_canvas_t,
@@ -3307,6 +3315,8 @@ extern "C" {
     pub fn sk_paint_reset(arg1: *mut sk_paint_t);
     pub fn sk_paint_is_antialias(arg1: *const sk_paint_t) -> bool;
     pub fn sk_paint_set_antialias(arg1: *mut sk_paint_t, arg2: bool);
+    pub fn sk_paint_get_alpha_f(arg1: *const sk_paint_t) -> f32;
+    pub fn sk_paint_set_alpha_f(arg1: *mut sk_paint_t, alpha: f32);
     pub fn sk_paint_get_color(arg1: *const sk_paint_t) -> sk_color_t;
     pub fn sk_paint_get_color4f(paint: *const sk_paint_t, color: *mut sk_color4f_t);
     pub fn sk_paint_set_color(arg1: *mut sk_paint_t, arg2: sk_color_t);

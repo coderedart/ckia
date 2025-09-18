@@ -20,17 +20,16 @@ fn main() {
         paint.set_color(Color::BLACK);
         paint.set_shader(Some(&mut gradient));
         let rad = 200.0;
-        let cx = 300.0;
-        let cy = 200.0;
-        canvas.draw_circle(cx, cy, rad, &paint);
+        let center = ckia::Vector::new(300.0, 200.0);
+        canvas.draw_circle(center, rad, &paint);
         let rad = rad / 2.0;
         paint.set_color(Color::MAGENTA);
-        canvas.draw_circle(cx, cy, rad, &paint);
+        canvas.draw_circle(center, rad, &paint);
         let rad = rad / 2.0;
         paint.set_color(Color::YELLOW);
-        canvas.draw_circle(cx, cy, rad, &paint);
+        canvas.draw_circle(center, rad, &paint);
         let rad = rad / 2.0;
         paint.set_color(Color::CYAN);
-        canvas.draw_circle(cx, cy, rad, &paint);
+        canvas.draw_circle(center, rad, &paint);
     });
 }

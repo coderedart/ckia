@@ -21,6 +21,10 @@ use self::{
 };
 
 use super::*;
+
+fn lvec_to_cpoint(vec: Vector) -> crate::Point {
+    crate::Point::new(vec.x(), vec.y())
+}
 pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
     let table = lua.create_table()?;
     {
@@ -171,12 +175,11 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
     table.set(
         "new_image_from_bytes",
         lua.create_function(|lua, bytes: Vec<u8>| {
-            let dtx = lua.named_registry_value::<UserDataRef<Rc<RefCell<DirectContext>>>>(
-                "skia_direct_context",
-            )?;
+            let mut dtx =
+                lua.named_registry_value::<UserDataRefMut<DirectContext>>("skia_direct_context")?;
             let data = crate::data::SkiaData::new_with_copy(&bytes);
             let image = Image::new_from_encoded(&data)
-                .and_then(|i| Some(i.make_texture_image(&mut dtx.borrow_mut(), true, true)));
+                .and_then(|i| Some(i.make_texture_image(&mut dtx, true, true)));
 
             Ok(image)
         })?,
@@ -197,7 +200,7 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
                 Ok(MaskFilter::new_table(&table_bytes.try_into().map_err(
                     |_| mlua::Error::FromLuaConversionError {
                         from: "vec<u8>",
-                        to: "[u8; 256]",
+                        to: "[u8; 256]".to_owned().to_owned(),
                         message: None,
                     },
                 )?))
@@ -430,17 +433,21 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
         table.set(
             "compose_patheffect",
             lua.create_function(
-                |_, (first, second): (UserDataRef<PathEffect>, UserDataRef<PathEffect>)| {
-                    Ok(PathEffect::create_compose(&first, &second))
-                },
+                |_,
+                 (mut first, mut second): (
+                    UserDataRefMut<PathEffect>,
+                    UserDataRefMut<PathEffect>,
+                )| { Ok(PathEffect::create_compose(&mut first, &mut second)) },
             )?,
         )?;
         table.set(
             "sum_patheffect",
             lua.create_function(
-                |_, (first, second): (UserDataRef<PathEffect>, UserDataRef<PathEffect>)| {
-                    Ok(PathEffect::create_sum(&first, &second))
-                },
+                |_,
+                 (mut first, mut second): (
+                    UserDataRefMut<PathEffect>,
+                    UserDataRefMut<PathEffect>,
+                )| { Ok(PathEffect::create_sum(&mut first, &mut second)) },
             )?,
         )?;
         table.set(
@@ -561,7 +568,7 @@ pub fn add_bindings(lua: &Lua) -> mlua::Result<Table> {
         )?;
     }
     assert!(!CKIA_LUA_SETUP.is_empty());
-    lua.load(CKIA_LUA_SETUP).call(&table)?;
+    let _: () = lua.load(CKIA_LUA_SETUP).call(&table)?;
     table.set_readonly(true);
     Ok(table)
 }
@@ -571,13 +578,13 @@ fn get_ckia_table(lua: &Lua) -> Table {
     lua.named_registry_value("ckia").unwrap()
 }
 impl UserData for Image {
-    fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
+    fn add_fields<F: mlua::prelude::LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("width", |_, this| Ok(this.get_width()));
         fields.add_field_method_get("height", |_, this| Ok(this.get_height()));
     }
 }
 impl UserData for Canvas {
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("clear", |_, this, value: Color| Ok(this.clear(value)));
 
         methods.add_method_mut("discard", |_, this, ()| Ok(this.discard()));
@@ -608,13 +615,13 @@ impl UserData for Canvas {
 
         methods.add_method_mut("reset_matrix", |_, this, ()| Ok(this.reset_matrix()));
         methods.add_method_mut("translate", |_, this, value: Vector| {
-            Ok(this.translate(value.x(), value.y()))
+            Ok(this.translate(lvec_to_cpoint(value)))
         });
         methods.add_method_mut("scale", |_, this, value: Vector| {
-            Ok(this.scale(value.x(), value.y()))
+            Ok(this.scale(lvec_to_cpoint(value)))
         });
         methods.add_method_mut("skew", |_, this, value: Vector| {
-            Ok(this.skew(value.x(), value.y()))
+            Ok(this.skew(lvec_to_cpoint(value)))
         });
         methods.add_method_mut("rotate_degrees", |_, this, value: f32| {
             Ok(this.rotate_degrees(value))
@@ -712,8 +719,8 @@ impl UserData for Canvas {
         );
         methods.add_method_mut(
             "draw_circle",
-            |_, this, (center, radius, mut paint): (Vector, f32, UserDataRefMut<Paint>)| {
-                Ok(this.draw_circle(center.x(), center.y(), radius, &mut paint))
+            |_, this, (center, radius, paint): (Vector, f32, UserDataRef<Paint>)| {
+                Ok(this.draw_circle(crate::Point::new(center.x(), center.y()), radius, &paint))
             },
         );
 
@@ -725,8 +732,8 @@ impl UserData for Canvas {
         );
         methods.add_method_mut(
             "draw_image",
-            |_, this, (img, point, mut paint): (UserDataRef<Image>, Vector, UserDataRefMut<Paint>)| {
-                Ok(this.draw_image(&img, point.x(), point.y(),&SamplingOptions::LINEAR,&mut paint))
+            |_, this, (img, point, paint): (UserDataRef<Image>, Vector, Option<UserDataRef<Paint>>)| {
+                Ok(this.draw_image(&img, crate::Vector::new(point.x(), point.y()), &SamplingOptions::LINEAR, paint.as_deref()))
             },
         );
         methods.add_method_mut(
@@ -745,7 +752,7 @@ impl UserData for Canvas {
     }
 }
 impl UserData for SkiaPath {
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("clone", |_, this, ()| Ok(this.clone()));
 
         methods.add_method_mut("move_to", |_, this, point: Point| {
@@ -953,28 +960,28 @@ impl UserData for SkiaPath {
         });
     }
 }
-impl<'lua> FromLua<'lua> for Color {
-    fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
+impl FromLua for Color {
+    fn from_lua(value: Value, _lua: &Lua) -> mlua::prelude::LuaResult<Self> {
         Ok(Color::from_u32(match value {
             Value::Integer(i) => i as u32,
             Value::Number(f) => f as u32,
             _ => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "value",
-                    to: "color",
+                    to: "color".to_string().to_owned(),
                     message: Some(format!("{value:?}")),
                 })
             }
         }))
     }
 }
-impl<'lua> IntoLua<'lua> for Color {
-    fn into_lua(self, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
+impl IntoLua for Color {
+    fn into_lua(self, _lua: &Lua) -> mlua::prelude::LuaResult<Value> {
         Ok(Value::Number(self.as_u32() as f64))
     }
 }
 impl UserData for Region {
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("is_empty", |_, this, ()| Ok(this.is_empty()));
         methods.add_method("is_rect", |_, this, ()| Ok(this.is_rect()));
         methods.add_method("is_complex", |_, this, ()| Ok(this.is_complex()));
@@ -1007,8 +1014,8 @@ impl UserData for Region {
         });
     }
 }
-impl<'lua> FromLua<'lua> for IRect {
-    fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
+impl FromLua for IRect {
+    fn from_lua(value: Value, _lua: &Lua) -> mlua::prelude::LuaResult<Self> {
         Ok(match value {
             Value::Table(t) => {
                 let min: Vector = t.get("min")?;
@@ -1024,22 +1031,22 @@ impl<'lua> FromLua<'lua> for IRect {
             _ => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "value",
-                    to: "irect",
+                    to: "irect".to_owned(),
                     message: None,
                 })
             }
         })
     }
 }
-impl<'lua> IntoLua<'lua> for IRect {
-    fn into_lua(self, lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
+impl IntoLua for IRect {
+    fn into_lua(self, lua: &Lua) -> mlua::prelude::LuaResult<Value> {
         let ckia = get_ckia_table(lua);
-        ckia.get::<_, Function>("new_irect")?
+        ckia.get::<Function>("new_irect")?
             .call((self.left, self.top, self.right, self.bottom))
     }
 }
-impl<'lua> FromLua<'lua> for Rect {
-    fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
+impl FromLua for Rect {
+    fn from_lua(value: Value, _lua: &Lua) -> mlua::prelude::LuaResult<Self> {
         Ok(match value {
             Value::Table(t) => {
                 let min: Vector = t.get("min")?;
@@ -1054,41 +1061,41 @@ impl<'lua> FromLua<'lua> for Rect {
             _ => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "value",
-                    to: "rect",
+                    to: "rect".to_owned(),
                     message: None,
                 })
             }
         })
     }
 }
-impl<'lua> IntoLua<'lua> for Rect {
-    fn into_lua(self, lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
+impl IntoLua for Rect {
+    fn into_lua(self, lua: &Lua) -> mlua::prelude::LuaResult<Value> {
         let ckia = get_ckia_table(lua);
-        ckia.get::<_, Function>("new_rect")?
+        ckia.get::<Function>("new_rect")?
             .call((self.left, self.top, self.right, self.bottom))
     }
 }
-impl<'lua> FromLua<'lua> for Point {
-    fn from_lua(value: Value<'lua>, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Self> {
+impl FromLua for Point {
+    fn from_lua(value: Value, _lua: &Lua) -> mlua::prelude::LuaResult<Self> {
         Ok(match value {
             Value::Vector(v) => Point { x: v.x(), y: v.y() },
             _ => {
                 return Err(mlua::Error::FromLuaConversionError {
                     from: "value",
-                    to: "point",
+                    to: "point".to_owned().to_owned(),
                     message: None,
                 })
             }
         })
     }
 }
-impl<'lua> IntoLua<'lua> for Point {
-    fn into_lua(self, _lua: &'lua Lua) -> mlua::prelude::LuaResult<Value<'lua>> {
+impl IntoLua for Point {
+    fn into_lua(self, _lua: &Lua) -> mlua::prelude::LuaResult<Value> {
         Ok(Value::Vector(Vector::new(self.x, self.y, 0.0)))
     }
 }
 impl UserData for Matrix {
-    fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
+    fn add_fields<F: mlua::prelude::LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("translate_x", |_, this| Ok(this.get_transX()));
         fields.add_field_method_get("translate_y", |_, this| Ok(this.get_transY()));
         fields.add_field_method_get("scale_x", |_, this| Ok(this.get_scaleX()));
@@ -1121,7 +1128,7 @@ impl UserData for Matrix {
     }
 }
 impl UserData for Paragraph {
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("get_max_width", |_, this, ()| Ok(this.get_max_width()));
 
         methods.add_method_mut("get_height", |_, this, ()| Ok(this.get_height()));
@@ -1155,7 +1162,7 @@ impl UserData for Paragraph {
     }
 }
 impl UserData for ParagraphBuider {
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("push_style", |_, this, style: UserDataRef<TextStyle>| {
             Ok(this.push_style(&style))
         });
@@ -1170,7 +1177,7 @@ impl UserData for ParagraphBuider {
     }
 }
 impl UserData for FontMgr {
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("count_families", |_, this, ()| Ok(this.count_families()));
         methods.add_method_mut("get_family_name", |_, this, value: i32| {
             Ok(this
@@ -1192,7 +1199,7 @@ impl UserData for FontMgr {
 }
 impl UserData for Typeface {}
 impl UserData for FontCollection {
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("font_fallback_enabled", |_, this, ()| {
             Ok(this.font_fallback_enabled())
         });
@@ -1220,7 +1227,7 @@ impl UserData for FontCollection {
 }
 impl UserData for RRect {}
 impl UserData for ParagraphStyle {
-    fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
+    fn add_fields<F: mlua::prelude::LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("text_style", |_, this| Ok(this.get_text_style()));
         fields.add_field_method_set("text_style", |_, this, value: UserDataRef<TextStyle>| {
             Ok(this.set_text_style(&value))
@@ -1279,7 +1286,7 @@ impl UserData for ParagraphStyle {
         fields.add_field_method_get("effective_align", |_, this| Ok(this.effective_align()));
     }
 
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut(
             "turn_hinting_off",
             |_, this, ()| Ok(this.turn_hinting_off()),
@@ -1287,14 +1294,14 @@ impl UserData for ParagraphStyle {
     }
 }
 impl UserData for FontStyle {
-    fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
+    fn add_fields<F: mlua::prelude::LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("width", |_, this| Ok(this.get_width()));
         fields.add_field_method_get("weight", |_, this| Ok(this.get_weight()));
         fields.add_field_method_get("slant", |_, this| Ok(this.get_slant()));
     }
 }
 impl UserData for TextStyle {
-    fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
+    fn add_fields<F: mlua::prelude::LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("color", |_, this| Ok(this.get_color()));
         fields.add_field_method_set("color", |_, this, color: Color| Ok(this.set_color(color)));
         fields.add_field_method_get("has_foreground", |_, this| Ok(this.has_foreground()));
@@ -1376,7 +1383,7 @@ impl UserData for TextStyle {
         });
     }
 
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("clear_foreground_color", |_, this, ()| {
             Ok(this.clear_foreground_color())
         });
@@ -1386,7 +1393,7 @@ impl UserData for TextStyle {
     }
 }
 impl UserData for Paint {
-    fn add_fields<'lua, F: mlua::prelude::LuaUserDataFields<'lua, Self>>(fields: &mut F) {
+    fn add_fields<F: mlua::prelude::LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("antialias", |_, p| Ok(p.is_antialias()));
         fields.add_field_method_set("antialias", |_, p, antialias: bool| {
             Ok(p.set_antialias(antialias))
@@ -1419,13 +1426,13 @@ impl UserData for Paint {
         fields.add_field_method_get("dither", |_, p| Ok(p.is_dither()));
         fields.add_field_method_set("dither", |_, p, value: bool| Ok(p.set_dither(value)));
 
-        fields.add_field_method_get("blendmode", |_, p| Ok(p.get_blendmode()));
+        // fields.add_field_method_get("blendmode", |_, p| Ok(p.get_blendmode()));
         fields.add_field_method_set("blendmode", |_, p, value: BlendMode| {
             Ok(p.set_blendmode(value))
         });
     }
 
-    fn add_methods<'lua, M: mlua::prelude::LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: mlua::prelude::LuaUserDataMethods<Self>>(methods: &mut M) {
         // all of these could be fields too, but their getters take paint by mut ref :( which won't work
         methods.add_method_mut("get_shader", |_, this, ()| Ok(this.get_shader()));
         methods.add_method_mut(
@@ -1635,10 +1642,10 @@ macro_rules! impl_from_to_lua_for_enum {
         )+
     ) => {
         $(
-            impl<'lua> FromLua<'lua> for $name {
+            impl FromLua for $name {
                 fn from_lua(
-                    value: mlua::prelude::LuaValue<'lua>,
-                    _lua: &'lua mlua::prelude::Lua,
+                    value: mlua::prelude::LuaValue,
+                    _lua: & mlua::prelude::Lua,
                 ) -> mlua::prelude::LuaResult<Self> {
                     Ok(match value_as_numerical(&value) {
                         Some(value) => {
@@ -1648,7 +1655,7 @@ macro_rules! impl_from_to_lua_for_enum {
                                 _ => {
                                     return Err(mlua::Error::FromLuaConversionError {
                                         from: "u32",
-                                        to: stringify!($name),
+                                        to: stringify!($name).to_owned(),
                                         message: Some(format!("{value}")),
                                     });
                                 }
@@ -1657,7 +1664,7 @@ macro_rules! impl_from_to_lua_for_enum {
                         _ => {
                             return Err(mlua::Error::FromLuaConversionError {
                                 from: "value",
-                                to: stringify!($name),
+                                to: stringify!($name).to_owned(),
                                 message: None,
                             });
                         }
@@ -1665,11 +1672,11 @@ macro_rules! impl_from_to_lua_for_enum {
                 }
             }
 
-            impl<'lua> IntoLua<'lua> for $name {
+            impl IntoLua for $name {
                 fn into_lua(
                     self,
-                    _lua: &'lua mlua::prelude::Lua,
-                ) -> mlua::prelude::LuaResult<mlua::prelude::LuaValue<'lua>> {
+                    _lua: & mlua::prelude::Lua,
+                ) -> mlua::prelude::LuaResult<mlua::prelude::LuaValue> {
                     Ok(Value::Number(self as u32 as _))
                 }
             }

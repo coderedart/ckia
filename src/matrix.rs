@@ -7,6 +7,12 @@ impl Default for Matrix {
         Self::IDENTITY
     }
 }
+impl std::ops::Mul for Matrix {
+    type Output = Matrix;
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.pre_concat(rhs)
+    }
+}
 impl Matrix {
     pub const IDENTITY: Self = Self::new_identity();
 
@@ -31,10 +37,10 @@ impl Matrix {
             sk_matrix_try_invert(self.as_ptr_mut() as _, result.as_ptr_mut()).then_some(result)
         }
     }
-    pub fn concat(mut self, mut other: Self) -> Self {
-        let mut result = Self::IDENTITY;
+    pub fn concat(mut left: Matrix, mut right: Matrix) -> Matrix {
+        let mut result = Matrix::default();
         unsafe {
-            sk_matrix_concat(result.as_ptr_mut(), self.as_ptr_mut(), other.as_ptr_mut());
+            sk_matrix_concat(result.as_ptr_mut(), left.as_ptr_mut(), right.as_ptr_mut());
         }
         result
     }

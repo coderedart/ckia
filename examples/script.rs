@@ -1,9 +1,9 @@
-use helper::HelperContext;
-
 mod helper;
 
 #[cfg(feature = "mlua")]
 pub fn main() {
+    use helper::HelperContext;
+
     use std::time::{Duration, Instant};
 
     use ckia::{canvas::Canvas, Color};

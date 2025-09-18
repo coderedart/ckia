@@ -1,7 +1,12 @@
+# Status: ABANDONED
+Maintaining these bindings is a lot of messy work.
+
+So, I have moved on to using https://github.com/coderedart/impellers/ . Impeller is a (less powerful) skia alternative in flutter, and covers much of the same functionality. It provides high quality official (and well documented) C FFI bindings, as well as pre-built binary dll/.so files for linking.
+
+If you need the full power of skia, I recommend using https://github.com/rust-skia/rust-skia instead. 
+
 ## Ckia
 Ckia is a 2D vector graphics library based on `Skia` with `SkiaSharp`'s "C" bindings. 
-
-**NOTE**: Please also read [ckia_sys README](./ckia_sys/README.md) which explains build requirements and customization. 
 
 ### Luau (mlua) bindings
 For Luau type definitions, 

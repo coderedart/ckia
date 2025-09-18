@@ -1,6 +1,6 @@
 use std::mem::transmute;
 
-use crate::bindings::*;
+use crate::{bindings::*, MutabilityMarker, OwnerShip, SkiaPtrMut};
 
 use crate::{color::Color, pixmap::PixMap, skia_wrapper, IRect, ImageInfo};
 
@@ -11,75 +11,75 @@ impl Default for BitMap {
         unsafe { Self::from_owned_ptr(sk_bitmap_new()) }
     }
 }
-impl BitMap {
+impl<O: OwnerShip + MutabilityMarker> BitMapGen<O> {
     pub fn get_info(&mut self) -> ImageInfo {
         let mut info = ImageInfo::default();
         unsafe {
-            sk_bitmap_get_info(self.inner, info.as_ptr_mut());
+            sk_bitmap_get_info(self.as_ptr_mut(), info.as_ptr_mut());
         }
         info
     }
     pub fn get_pixels(&mut self) -> &mut [u8] {
         let mut length = 0usize;
         unsafe {
-            let ptr_to_pixels = sk_bitmap_get_pixels(self.inner, &mut length as _);
+            let ptr_to_pixels = sk_bitmap_get_pixels(self.as_ptr_mut(), &mut length as _);
             std::slice::from_raw_parts_mut(ptr_to_pixels as _, length)
         }
     }
     pub fn get_row_bytes(&mut self) -> usize {
-        unsafe { sk_bitmap_get_row_bytes(self.inner) }
+        unsafe { sk_bitmap_get_row_bytes(self.as_ptr_mut()) }
     }
     pub fn get_byte_count(&mut self) -> usize {
-        unsafe { sk_bitmap_get_byte_count(self.inner) }
+        unsafe { sk_bitmap_get_byte_count(self.as_ptr_mut()) }
     }
     pub fn reset(&mut self) {
         unsafe {
-            sk_bitmap_reset(self.inner);
+            sk_bitmap_reset(self.as_ptr_mut());
         }
     }
     pub fn is_null(&mut self) -> bool {
-        unsafe { sk_bitmap_is_null(self.inner) }
+        unsafe { sk_bitmap_is_null(self.as_ptr_mut()) }
     }
     pub fn is_immutable(&mut self) -> bool {
-        unsafe { sk_bitmap_is_immutable(self.inner) }
+        unsafe { sk_bitmap_is_immutable(self.as_ptr_mut()) }
     }
     pub fn set_immutable(&mut self) {
-        unsafe { sk_bitmap_set_immutable(self.inner) }
+        unsafe { sk_bitmap_set_immutable(self.as_ptr_mut()) }
     }
     pub fn erase(&mut self, color: Color) {
         unsafe {
-            sk_bitmap_erase(self.inner, color.0);
+            sk_bitmap_erase(self.as_ptr_mut(), color.0);
         }
     }
     pub fn erase_rect(&mut self, color: Color, rect: &mut IRect) {
         unsafe {
-            sk_bitmap_erase_rect(self.inner, color.0, rect.as_ptr_mut());
+            sk_bitmap_erase_rect(self.as_ptr_mut(), color.0, rect.as_ptr_mut());
         }
     }
     pub fn get_addr_8(&mut self, x: i32, y: i32) -> Option<&mut u8> {
-        unsafe { sk_bitmap_get_addr_8(self.inner, x, y).as_mut() }
+        unsafe { sk_bitmap_get_addr_8(self.as_ptr_mut(), x, y).as_mut() }
     }
     pub fn get_addr_16(&mut self, x: i32, y: i32) -> Option<&mut u16> {
-        unsafe { sk_bitmap_get_addr_16(self.inner, x, y).as_mut() }
+        unsafe { sk_bitmap_get_addr_16(self.as_ptr_mut(), x, y).as_mut() }
     }
     pub fn get_addr_32(&mut self, x: i32, y: i32) -> Option<&mut u32> {
-        unsafe { sk_bitmap_get_addr_32(self.inner, x, y).as_mut() }
+        unsafe { sk_bitmap_get_addr_32(self.as_ptr_mut(), x, y).as_mut() }
     }
     pub fn get_addr(&mut self, x: i32, y: i32) -> Option<&mut std::ffi::c_void> {
-        unsafe { sk_bitmap_get_addr(self.inner, x, y).as_mut() }
+        unsafe { sk_bitmap_get_addr(self.as_ptr_mut(), x, y).as_mut() }
     }
     pub fn get_pixel_color(&mut self, x: i32, y: i32) -> Color {
-        unsafe { Color(sk_bitmap_get_pixel_color(self.inner, x, y)) }
+        unsafe { Color(sk_bitmap_get_pixel_color(self.as_ptr_mut(), x, y)) }
     }
     pub fn ready_to_draw(&mut self) -> bool {
-        unsafe { sk_bitmap_ready_to_draw(self.inner) }
+        unsafe { sk_bitmap_ready_to_draw(self.as_ptr_mut()) }
     }
     /// will panic if the length of `colors` is not width x height.
     pub fn get_pixel_colors(&mut self) -> Vec<Color> {
         let info = self.get_info();
         let mut colors = Vec::with_capacity(info.get_width() as usize * info.get_height() as usize);
         unsafe {
-            sk_bitmap_get_pixel_colors(self.inner, colors.as_mut_ptr() as _);
+            sk_bitmap_get_pixel_colors(self.as_ptr_mut(), colors.as_mut_ptr() as _);
         }
         colors
     }
@@ -91,15 +91,15 @@ impl BitMap {
                 || row_bytes == 0,
             "invalid row bytes value"
         );
-        unsafe { sk_bitmap_try_alloc_pixels(self.inner, requested_info.as_ptr(), row_bytes) }
+        unsafe { sk_bitmap_try_alloc_pixels(self.as_ptr_mut(), requested_info.as_ptr(), row_bytes) }
     }
     pub fn swap(&mut self, other: &mut Self) {
         unsafe {
-            sk_bitmap_swap(self.inner, other.inner);
+            sk_bitmap_swap(self.as_ptr_mut(), other.inner);
         }
     }
     pub fn notify_pixels_changed(&mut self) {
-        unsafe { sk_bitmap_notify_pixels_changed(self.inner) }
+        unsafe { sk_bitmap_notify_pixels_changed(self.as_ptr_mut()) }
     }
     /*
     pub fn sk_bitmap_get_pixel_colors(cbitmap: *mut sk_bitmap_t, colors: *mut sk_color_t);
@@ -130,7 +130,7 @@ impl BitMap {
         pixmap: PixMap<'b, T>,
     ) -> Result<PixMap<'a, Self>, PixMap<'b, T>> {
         unsafe {
-            if sk_bitmap_peek_pixels(self.inner, pixmap.inner) {
+            if sk_bitmap_peek_pixels(self.as_ptr_mut(), pixmap.inner) {
                 Ok(transmute(pixmap))
             } else {
                 Err(pixmap)

@@ -1,3 +1,4 @@
+use crate::{SkiaPtr, SkiaPtrMut};
 use std::{marker::PhantomData, ops::Add};
 
 use crate::bindings::*;
@@ -331,14 +332,14 @@ pub struct ICCProfile<'a> {
     inner: *mut sk_colorspace_icc_profile_t,
     phantom: PhantomData<&'a [u8]>,
 }
-impl<'a> Drop for ICCProfile<'a> {
+impl Drop for ICCProfile<'_> {
     fn drop(&mut self) {
         unsafe {
             sk_colorspace_icc_profile_delete(self.inner);
         }
     }
 }
-impl<'a> ICCProfile<'a> {
+impl ICCProfile<'_> {
     pub fn new() -> ICCProfile<'static> {
         ICCProfile {
             inner: unsafe { sk_colorspace_icc_profile_new() },

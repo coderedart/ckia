@@ -5,7 +5,7 @@ use ckia::{
     *,
 };
 use helper::HelperContext;
-const POEM: &'static str = r#"Looking up at the stars, I know quite well
+const POEM: &str = r#"Looking up at the stars, I know quite well
 That, for all they care, I can go to hell,
 But on earth indifference is the least
 We have to dread from man or beast."#;
@@ -44,23 +44,33 @@ fn main() {
             let mut builder = ParagraphBuider::new(&style, &fc);
             builder.add_text(POEM);
             let mut poem = builder.build();
-            poem.update_font_size(0, POEM.len(), 32.0);
-            poem.layout(1000.0);
+            poem.update_font_size(0, POEM.len(), 40.0);
+            poem.layout(2000.0);
             poem
         });
 
         {
             let mut canvas = surface.get_canvas();
             let canvas = canvas.as_mut();
-            canvas.draw_color(Color::LTGRAY, BlendMode::SRC_SK_BLENDMODE);
+            canvas.save();
+            {
+                canvas.scale(ckia::Vector::new(2.0, 2.0));
+                canvas.rotate_degrees(45.0);
+                canvas.draw_color(Color::WHITE, BlendMode::SRC_SK_BLENDMODE);
 
-            poem.paint(canvas, 0.0, 0.0);
+                poem.paint(canvas, 0.0, 0.0);
+                canvas.reset_matrix();
+                canvas.scale(ckia::Vector::new(2.0, 2.0));
+                canvas.rotate_degrees(10.0);
 
-            let mut y = 200.0;
-            for line in POEM.lines() {
-                canvas.draw_simple_text(line, 0.0, y, &fira_font, &paint);
-                y += 40.0;
+                let mut y = 0.0;
+
+                for line in POEM.lines() {
+                    canvas.draw_simple_text(line, 0.0, y, fira_font, &paint);
+                    y += 40.0;
+                }
             }
+            canvas.restore();
         }
     });
 }

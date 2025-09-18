@@ -57,8 +57,7 @@ fn main() {
     }
 
     let build_from_src: bool = !cfg!(feature = "disable_build_from_src");
-    let download_pre_built_skia_libs: bool =
-        !cfg!(feature = "disable_download_pre_built_skia_libs");
+    let download_pre_built_skia_libs: bool = !cfg!(feature = "disable_pre_built_libs");
     let component_build = cfg!(feature = "component_build");
 
     let target_triple = var("TARGET").expect("failed to get build target triple");
@@ -490,7 +489,7 @@ pub fn try_build_from_src(
     );
     let output = Command::new(&gn)
         .current_dir(&skia_dir)
-        .args(["desc", &out_dir.to_str().unwrap(), "//:skia", "libs"])
+        .args(["desc", out_dir.to_str().unwrap(), "//:skia", "libs"])
         .output()
         .expect("failed to run gn desc libs ");
     assert!(
@@ -504,7 +503,7 @@ pub fn try_build_from_src(
     if target_triple.contains("darwin") {
         let output = Command::new(&gn)
             .current_dir(&skia_dir)
-            .args(["desc", &out_dir.to_str().unwrap(), "//:skia", "frameworks"])
+            .args(["desc", out_dir.to_str().unwrap(), "//:skia", "frameworks"])
             .output()
             .expect("failed to run gn desc libs ");
         assert!(
@@ -522,7 +521,7 @@ pub fn try_build_from_src(
     assert!(
         Command::new("ninja")
             .current_dir(&skia_dir)
-            .args(["-C", &out_dir.to_str().unwrap()])
+            .args(["-C", out_dir.to_str().unwrap()])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
@@ -759,7 +758,7 @@ pub fn get_user_cache_dir() -> Result<PathBuf, String> {
     return var("LOCALAPPDATA")
         .map(PathBuf::from)
         .map_err(|_| format!("LOCALAPPDATA env var is not found."));
-    #[cfg(mac)]
+    #[cfg(target_os = "macos")]
     return var("HOME")
         .map(|s| PathBuf::from(s).join("Library/Caches"))
         .map_err(|_| format!("failed to find $HOME var"));

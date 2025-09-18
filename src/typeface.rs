@@ -1,3 +1,4 @@
+use crate::{SkiaPtr, SkiaPtrMut};
 use std::ffi::CStr;
 use std::ffi::CString;
 

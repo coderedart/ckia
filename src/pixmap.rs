@@ -9,7 +9,7 @@ pub struct PixMap<'a, T = ()> {
     pub(crate) inner: *mut sk_pixmap_t,
     phantom: PhantomData<&'a T>,
 }
-impl<'a, T> Drop for PixMap<'a, T> {
+impl<T> Drop for PixMap<'_, T> {
     fn drop(&mut self) {
         unsafe { sk_pixmap_destructor(self.inner) }
     }

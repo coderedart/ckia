@@ -45,8 +45,13 @@ fn main() {
         paint.set_antialias(true);
         {
             canvas.save();
-            canvas.scale(0.4, 0.4);
-            canvas.draw_image(&image, 0.0, 0.0, &SamplingOptions::LINEAR, &paint);
+            canvas.scale(ckia::Vector::new(0.4, 0.4));
+            canvas.draw_image(
+                &image,
+                Default::default(),
+                &SamplingOptions::LINEAR,
+                Some(&paint),
+            );
             canvas.restore();
         }
 

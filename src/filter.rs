@@ -1,9 +1,12 @@
-use crate::{bindings::*, ColorChannel};
+use crate::image::Image;
+use crate::picture::Picture;
+use crate::{bindings::*, ColorChannel, IPoint, ISize, Matrix, Point3, SamplingOptions};
 
 use crate::{
     color::Color, shader::Shader, skia_wrapper, BlendMode, BlurStyle, Highcontrastconfig, Rect,
     ShaderTileMode, SkiaOptPtr,
 };
+use crate::{SkiaPtr, SkiaPtrMut};
 
 skia_wrapper!(
     refcnt,
@@ -217,140 +220,323 @@ impl ImageFilter {
             ))
         }
     }
-    /*
-    pub fn sk_imagefilter_new_image(
-        image: *mut sk_image_t,
-        srcRect: *const sk_rect_t,
-        dstRect: *const sk_rect_t,
-        sampling: *const sk_sampling_options_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_image_simple(
-        image: *mut sk_image_t,
-        sampling: *const sk_sampling_options_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_magnifier(
-        lensBounds: *const sk_rect_t,
-        zoomAmount: f32,
+    pub fn new_image(
+        img: &mut Image,
+        src_rect: &Rect,
+        dst_rect: &Rect,
+        sampling: &SamplingOptions,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_image(
+                img.as_ptr_mut(),
+                src_rect.as_ptr(),
+                dst_rect.as_ptr(),
+                sampling.as_ptr(),
+            ))
+        }
+    }
+    pub fn new_image_simple(img: &mut Image, sampling: &SamplingOptions) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_image_simple(
+                img.as_ptr_mut(),
+                sampling.as_ptr(),
+            ))
+        }
+    }
+    pub fn new_magnifier(
+        lens_bounds: &Rect,
+        zoom_amount: f32,
         inset: f32,
-        sampling: *const sk_sampling_options_t,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_matrix_convolution(
-        kernelSize: *const sk_isize_t,
-        kernel: *const f32,
+        sampling: &SamplingOptions,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_magnifier(
+                lens_bounds.as_ptr(),
+                zoom_amount,
+                inset,
+                sampling.as_ptr(),
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_matrix_convolution(
+        kernel_size: &ISize,
+        kernel: &[f32],
         gain: f32,
         bias: f32,
-        kernelOffset: *const sk_ipoint_t,
-        ctileMode: sk_shader_tilemode_t,
-        convolveAlpha: bool,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_matrix_transform(
-        cmatrix: *const sk_matrix_t,
-        sampling: *const sk_sampling_options_t,
-        input: *const sk_imagefilter_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_merge(
-        cfilters: *mut *const sk_imagefilter_t,
-        count: ::std::os::raw::c_int,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_merge_simple(
-        first: *const sk_imagefilter_t,
-        second: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_offset(
-        dx: f32,
-        dy: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_picture(picture: *const sk_picture_t) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_picture_with_rect(
-        picture: *const sk_picture_t,
-        targetRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_shader(
-        shader: *const sk_shader_t,
-        dither: bool,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_tile(
-        src: *const sk_rect_t,
-        dst: *const sk_rect_t,
-        input: *const sk_imagefilter_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_dilate(
-        radiusX: f32,
-        radiusY: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_erode(
-        radiusX: f32,
-        radiusY: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_distant_lit_diffuse(
-        direction: *const sk_point3_t,
-        lightColor: sk_color_t,
-        surfaceScale: f32,
+        kernel_offset: &IPoint,
+        tile_mode: ShaderTileMode,
+        convolve_alpha: bool,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        assert_eq!(
+            kernel.len(),
+            (kernel_size.w * kernel_size.h) as usize,
+            "Kernel size does not match specified dimensions"
+        );
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_matrix_convolution(
+                kernel_size.as_ptr(),
+                kernel.as_ptr(),
+                gain,
+                bias,
+                kernel_offset.as_ptr(),
+                tile_mode,
+                convolve_alpha,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_matrix_transform(
+        cmatrix: &Matrix,
+        sampling: &SamplingOptions,
+        input: Option<&Self>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_matrix_transform(
+                cmatrix.as_ptr(),
+                sampling.as_ptr(),
+                input.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_merge(filters: &[&Self], crop_rect: Option<&Rect>) -> Self {
+        unsafe {
+            let mut cfilters: Vec<*const sk_imagefilter_t> =
+                filters.iter().map(|f| f.as_ptr()).collect();
+            Self::from_owned_ptr(sk_imagefilter_new_merge(
+                cfilters.as_mut_ptr(),
+                cfilters.len() as ::std::os::raw::c_int,
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_merge_simple(first: &Self, second: &Self, crop_rect: Option<&Rect>) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_merge_simple(
+                first.as_ptr(),
+                second.as_ptr(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_offset(dx: f32, dy: f32, input: Option<&Self>, crop_rect: Option<&Rect>) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_offset(
+                dx,
+                dy,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_picture(picture: &Picture) -> Self {
+        unsafe { Self::from_owned_ptr(sk_imagefilter_new_picture(picture.as_ptr())) }
+    }
+
+    pub fn new_picture_with_rect(picture: &Picture, target_rect: &Rect) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_picture_with_rect(
+                picture.as_ptr(),
+                target_rect.as_ptr(),
+            ))
+        }
+    }
+
+    pub fn new_shader(shader: &Shader, dither: bool, crop_rect: Option<&Rect>) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_shader(
+                shader.as_ptr(),
+                dither,
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_tile(src: &Rect, dst: &Rect, input: Option<&Self>) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_tile(
+                src.as_ptr(),
+                dst.as_ptr(),
+                input.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_dilate(
+        radius_x: f32,
+        radius_y: f32,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_dilate(
+                radius_x,
+                radius_y,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_erode(
+        radius_x: f32,
+        radius_y: f32,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_erode(
+                radius_x,
+                radius_y,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_distant_lit_diffuse(
+        direction: &Point3,
+        light_color: Color,
+        surface_scale: f32,
         kd: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_point_lit_diffuse(
-        location: *const sk_point3_t,
-        lightColor: sk_color_t,
-        surfaceScale: f32,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_distant_lit_diffuse(
+                direction.as_ptr(),
+                light_color.as_u32(),
+                surface_scale,
+                kd,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_point_lit_diffuse(
+        location: &Point3,
+        light_color: Color,
+        surface_scale: f32,
         kd: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_spot_lit_diffuse(
-        location: *const sk_point3_t,
-        target: *const sk_point3_t,
-        specularExponent: f32,
-        cutoffAngle: f32,
-        lightColor: sk_color_t,
-        surfaceScale: f32,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_point_lit_diffuse(
+                location.as_ptr(),
+                light_color.as_u32(),
+                surface_scale,
+                kd,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_spot_lit_diffuse(
+        location: &Point3,
+        target: &Point3,
+        specular_exponent: f32,
+        cutoff_angle: f32,
+        light_color: Color,
+        surface_scale: f32,
         kd: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_distant_lit_specular(
-        direction: *const sk_point3_t,
-        lightColor: sk_color_t,
-        surfaceScale: f32,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_spot_lit_diffuse(
+                location.as_ptr(),
+                target.as_ptr(),
+                specular_exponent,
+                cutoff_angle,
+                light_color.as_u32(),
+                surface_scale,
+                kd,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+    pub fn new_distant_lit_specular(
+        direction: &Point3,
+        light_color: Color,
+        surface_scale: f32,
         ks: f32,
         shininess: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_point_lit_specular(
-        location: *const sk_point3_t,
-        lightColor: sk_color_t,
-        surfaceScale: f32,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_distant_lit_specular(
+                direction.as_ptr(),
+                light_color.as_u32(),
+                surface_scale,
+                ks,
+                shininess,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_point_lit_specular(
+        location: &Point3,
+        light_color: Color,
+        surface_scale: f32,
         ks: f32,
         shininess: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-    pub fn sk_imagefilter_new_spot_lit_specular(
-        location: *const sk_point3_t,
-        target: *const sk_point3_t,
-        specularExponent: f32,
-        cutoffAngle: f32,
-        lightColor: sk_color_t,
-        surfaceScale: f32,
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_point_lit_specular(
+                location.as_ptr(),
+                light_color.as_u32(),
+                surface_scale,
+                ks,
+                shininess,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
+
+    pub fn new_spot_lit_specular(
+        location: &Point3,
+        target: &Point3,
+        specular_exponent: f32,
+        cutoff_angle: f32,
+        light_color: Color,
+        surface_scale: f32,
         ks: f32,
         shininess: f32,
-        input: *const sk_imagefilter_t,
-        cropRect: *const sk_rect_t,
-    ) -> *mut sk_imagefilter_t;
-     */
+        input: Option<&Self>,
+        crop_rect: Option<&Rect>,
+    ) -> Self {
+        unsafe {
+            Self::from_owned_ptr(sk_imagefilter_new_spot_lit_specular(
+                location.as_ptr(),
+                target.as_ptr(),
+                specular_exponent,
+                cutoff_angle,
+                light_color.as_u32(),
+                surface_scale,
+                ks,
+                shininess,
+                input.or_null(),
+                crop_rect.or_null(),
+            ))
+        }
+    }
 }

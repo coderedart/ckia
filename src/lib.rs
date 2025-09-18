@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::{ffi::CStr, marker::PhantomData};
 
 pub mod bindings;
 
@@ -77,70 +77,235 @@ pub fn init() {
 #[cfg(not(windows))]
 pub fn init() {}
 
-#[derive(Debug)]
-#[cfg_attr(feature = "reflect", derive(bevy_reflect::Reflect))]
-#[cfg_attr(feature = "reflect", reflect(where T: RefCounted))]
-#[cfg_attr(feature = "reflect", reflect(from_reflect = false))]
-pub struct SkiaWrapper<T: FfiDrop> {
-    #[cfg_attr(feature = "reflect", reflect(ignore))]
-    inner: *mut T,
+pub type SkiaOwn<T> = SkiaWrapper<T, SkiaOwnerMarker>;
+pub type SkiaRef<'a, T> = SkiaWrapper<T, SkiaRefMarker<'a>>;
+pub type SkiaRefMut<'a, T> = SkiaWrapper<T, SkiaRefMutMarker<'a>>;
+
+/// Tells us whether we should run the delete/drop/destructor functions.
+///
+/// The constant `SHOULD_RUN_DROP` is used inside [Drop::drop] fn to
+/// decide if we call the actual destructor or not.
+///
+/// We get the destructor from the [FfiDrop] trait implementation on T.
+///
+/// This trait is implemented for [SkiaOwn].
+pub unsafe trait OwnerShip {
+    const SHOULD_RUN_DROP: bool;
+}
+/// Represents whether we can call methods that require a `&mut self`.
+///
+/// This is implemented for [SkiaOwn] and [SkiaRefMut]. So, as long as you
+/// have one of those, you are allowed to call mutating methods.
+///
+/// This ensures that you can only use readonly methods for [SkiaRef] objects.
+pub unsafe trait MutabilityMarker {}
+
+/// Marker struct to represent ownership
+/// must run the destructor
+/// As owner, it also can mutate its object, so it is
+/// allowed to call mutating methods.
+pub struct SkiaOwnerMarker;
+unsafe impl OwnerShip for SkiaOwnerMarker {
+    const SHOULD_RUN_DROP: bool = true;
+}
+unsafe impl MutabilityMarker for SkiaOwnerMarker {}
+/// Marker struct to represent immutable borrow.
+/// never run destructor and cannot call mutating methods.
+pub struct SkiaRefMarker<'a>(PhantomData<&'a ()>);
+unsafe impl OwnerShip for SkiaRefMarker<'_> {
+    const SHOULD_RUN_DROP: bool = false;
 }
 
-impl<T: FfiDrop> Drop for SkiaWrapper<T> {
+/// Marker struct to represent mutable borrow.
+/// never run destructor and can call mutating methods.
+pub struct SkiaRefMutMarker<'a>(PhantomData<&'a mut ()>);
+unsafe impl OwnerShip for SkiaRefMutMarker<'_> {
+    const SHOULD_RUN_DROP: bool = false;
+}
+unsafe impl MutabilityMarker for SkiaRefMutMarker<'_> {}
+
+/// SkiaWrapper is used to encapsulate all the "pointer-wrapping" types generically.
+///
+/// Pointers obvious come in 3 flavors: owned, immutable borrowed, mutably borrowed.
+/// We use this type to indicate which flavor pointer is being used in any API.
+///
+/// ### Ownership
+/// We should not run drop fn for borrowd pointers, so the [Drop] impl [SkiaWrapper] uses [OwnerShip]
+/// to decide if it can run the drop fn or not.
+///
+/// The actual destructor is only run if `OwnerShip::SHOULD_RUN_DROP` is true.
+/// so, if [SkiaOwner] is `O` (the generic type), then we run destructor because that is the only impl that sets `SHOULD_RUN_DROP` to true
+/// Now, we can use [SkiaWrapper<T, SkiaOwner>] for owned pointers and [SkiaWrapper<T, SkiaRef<'_>>] and [SkiaWrapper<T, SkiaRefMut<'_>>] for borrowed pointers
+///
+/// The next problem is that the delete/destructor functions are different based on T. So, we put the actual delete function inside [FfiDrop::ffi_drop] impl of T.
+/// So, to summarize, T generic decides which delete function to call and `O` generic decides whether we should call it or not inside [Drop::drop].
+///
+/// A simpler way to understand it is:
+/// 1. [SkiaOwn] - can call [SkiaWrapper::into_owned_ptr] and [SkiaWrapper::as_ptr_mut] and [SkiaWrapper::as_ptr].
+/// 2. [SkiaRefMut] - can call [SkiaWrapper::as_ptr_mut] and [SkiaWrapper::as_ptr].
+/// 3. [SkiaRef] - can only call [SkiaWrapper::as_ptr].
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct SkiaWrapper<T: FfiDrop, O: OwnerShip = SkiaOwnerMarker> {
+    inner: *mut T,
+    phantom: PhantomData<O>,
+}
+
+impl<T: FfiDrop, O: OwnerShip> Drop for SkiaWrapper<T, O> {
     fn drop(&mut self) {
-        unsafe { crate::FfiDrop::ffi_drop(self.inner) }
+        if O::SHOULD_RUN_DROP {
+            unsafe { crate::FfiDrop::ffi_drop(self.inner) }
+        }
     }
 }
-impl<T: FfiDrop> SkiaWrapper<T> {
-    pub(crate) fn as_ptr(&self) -> *const T {
-        self.inner as _
+
+pub(crate) trait SkiaPtr {
+    type OriginalType;
+    fn as_ptr(&self) -> *const Self::OriginalType;
+}
+pub(crate) trait SkiaPtrMut {
+    type OriginalType;
+    fn as_ptr_mut(&mut self) -> *mut Self::OriginalType;
+}
+impl<T: FfiDrop, O: OwnerShip> SkiaPtr for SkiaWrapper<T, O> {
+    type OriginalType = T;
+    fn as_ptr(&self) -> *const T {
+        self.inner.cast_const()
     }
+}
+impl<T: FfiDrop, O: OwnerShip + MutabilityMarker> SkiaPtrMut for SkiaWrapper<T, O> {
+    type OriginalType = T;
+    fn as_ptr_mut(&mut self) -> *mut Self::OriginalType {
+        self.inner
+    }
+}
+/*
+ impl<T: FfiDrop> SkiaPtrMut for SkiaWrapper<T, SkiaRefMutMarker<'_>> {
+     type OriginalType = T;
+     fn as_ptr_mut(&mut self) -> *mut Self::OriginalType {
+         self.inner
+     }
+ }
+ impl<T: FfiDrop, O: OwnerShip> SkiaWrapper<T, O> {
+     pub(crate) fn as_ptr(&self) -> *const T {
+         self.inner.cast_const()
+     }
+ }
+ impl<T: FfiDrop> SkiaWrapper<T, SkiaOwnerMarker> {
+     pub fn as_ptr_mut(&mut self) -> *mut T {
+         self.inner
+     }
+ }
+*/
+
+/// Gets the internal pointer. Mainly used in mutating methods
+/// that take `&mut self` parameter.
+impl<T: FfiDrop> SkiaWrapper<T, SkiaRefMutMarker<'_>> {
     pub fn as_ptr_mut(&mut self) -> *mut T {
         self.inner
     }
+}
+impl<T: FfiDrop> SkiaWrapper<T> {
     /// consumes struct and returns a ptr that has ownership.
+    /// Will NOT call drop.
+    ///
     /// # Safety
-    /// caller needs to call unref after being done with it
+    /// caller is now responsible for calling [FfiDrop::ffi_drop] manually
     unsafe fn into_owned_ptr(mut self) -> *mut T {
         let inner = self.as_ptr_mut();
         std::mem::forget(self);
         inner
     }
+}
+impl<T: FfiDrop, O: OwnerShip> SkiaWrapper<T, O> {
     /// takes a pointer and assumes ownership of it. panics if null ptr. For a non-panic version. use [Self::try_from_owned_ptr]
     /// # Safety
     /// the struct assumes ownership, so caller shouldn't use it after that.
     /// also make sure that you haven't accidentally called unref on it in the past.
-    unsafe fn from_owned_ptr(ptr: *mut T) -> Self {
+    unsafe fn from_owned_ptr(ptr: *mut T) -> SkiaWrapper<T, SkiaOwnerMarker> {
         assert!(!ptr.is_null());
-        Self { inner: ptr }
+        SkiaWrapper {
+            inner: ptr,
+            phantom: PhantomData,
+        }
     }
     /// takes a pointer and assumes ownership of it. returns None if nullptr.
     /// # Safety
     /// the struct assumes ownership, so caller shouldn't use it after that.
     /// also make sure that you haven't accidentally called unref on it in the past.
-    unsafe fn try_from_owned_ptr(ptr: *mut T) -> Option<Self> {
+    unsafe fn try_from_owned_ptr(ptr: *mut T) -> Option<SkiaWrapper<T, SkiaOwnerMarker>> {
         if ptr.is_null() {
             None
         } else {
             Some(Self::from_owned_ptr(ptr))
         }
     }
+    /// takes a pointer and uses it to create a borrowed version of SkiaWrapper
+    /// # Safety
+    /// The lifetime is bound to whatever object it is borrowed from.
+    #[allow(unused)]
+    unsafe fn ref_from_borrowed_ptr<'a>(ptr: *const T) -> Option<SkiaRef<'a, T>> {
+        if ptr.is_null() {
+            None
+        } else {
+            Some(SkiaWrapper {
+                inner: ptr as _,
+                phantom: PhantomData,
+            })
+        }
+    }
+    /// takes a pointer and uses it to create a mutably borrowed version of SkiaWrapper
+    /// # Safety
+    /// The lifetime is bound to whatever object it is borrowed from.
+    unsafe fn ref_mut_from_borrowed_ptr<'a>(ptr: *mut T) -> Option<SkiaRefMut<'a, T>> {
+        if ptr.is_null() {
+            None
+        } else {
+            Some(SkiaWrapper {
+                inner: ptr,
+                phantom: PhantomData,
+            })
+        }
+    }
 }
+// impl< T: FfiDrop> Deref for SkiaOwn<T> {
+//     type Target = SkiaRefMut<'_, T>;
+
+//     fn deref(&self) -> &Self::Target {
+//         unsafe {std::mem::transmute(self)}
+//     }
+// }
+// impl<'a, T: FfiDrop> DerefMut<SkiaRefMut<'a, T>> for SkiaOwn<T> {
+//     fn deref_mut(&mut self) -> &mut T {
+//         unsafe { &mut *self.inner }
+//     }
+
+// }
+
+/// This holds the actual destructor function that should be called for owned skia pointers.
+///
 pub unsafe trait FfiDrop {
     unsafe fn ffi_drop(this: *mut Self);
 }
-pub(crate) trait SkiaOptPtrMut<T> {
-    fn or_null_mut(self) -> *mut T;
+/// convenience trait to turn [Option<&mut T>] into [*mut T] (using nullptr for None)
+/// A lot of skia API includes optional objects, so this is useful
+pub(crate) trait SkiaOptPtrMut {
+    type Output;
+    fn or_null_mut(self) -> *mut Self::Output;
 }
-pub(crate) trait SkiaOptPtr<T> {
-    fn or_null(&self) -> *const T;
+/// convenience trait to turn Option<&T> into *const T (using nullptr for None)
+pub(crate) trait SkiaOptPtr {
+    type Output;
+    fn or_null(&self) -> *const Self::Output;
 }
-impl<T: FfiDrop> SkiaOptPtr<T> for Option<&SkiaWrapper<T>> {
+impl<T: FfiDrop> SkiaOptPtr for Option<&SkiaWrapper<T>> {
+    type Output = T;
     fn or_null(&self) -> *const T {
         self.map(|s| s.as_ptr()).unwrap_or(std::ptr::null())
     }
 }
-impl<T: FfiDrop> SkiaOptPtrMut<T> for Option<&mut SkiaWrapper<T>> {
+impl<T: FfiDrop> SkiaOptPtrMut for Option<&mut SkiaWrapper<T>> {
+    type Output = T;
     fn or_null_mut(self) -> *mut T {
         match self {
             Some(m) => m.as_ptr_mut(),
@@ -243,17 +408,20 @@ macro_rules! pod_struct {
                 );
             )+
         }
-        impl crate::SkiaOptPtr<$opaque> for Option<$name> {
+        impl crate::SkiaOptPtr for Option<$name> {
+            type Output = $opaque;
             fn or_null(&self) -> *const $opaque {
                 self.map(|s| s.as_ptr()).unwrap_or(std::ptr::null())
             }
         }
-        impl crate::SkiaOptPtr<$opaque> for Option<&$name> {
+        impl crate::SkiaOptPtr for Option<&$name> {
+            type Output = $opaque;
             fn or_null(&self) -> *const $opaque {
                 self.map(|s| s.as_ptr()).unwrap_or(std::ptr::null())
             }
         }
-        impl crate::SkiaOptPtrMut<$opaque> for Option<&mut $name> {
+        impl crate::SkiaOptPtrMut for Option<&mut $name> {
+            type Output = $opaque;
             fn or_null_mut(self) -> *mut $opaque {
                 match self {
                     Some(m) => m.as_ptr_mut(),
@@ -309,10 +477,10 @@ macro_rules! skia_wrapper {
         impl crate::RefCounted for $name {}
         unsafe impl crate::VirtualRefCounted for $name {
             fn as_vref_ptr(&self) -> *const sk_refcnt_t {
-                self.as_ptr() as _
+                crate::SkiaPtr::as_ptr(self) as _
             }
             fn as_vref_ptr_mut(&mut self) -> *mut sk_refcnt_t {
-                self.as_ptr_mut() as _
+                crate::SkiaPtrMut::as_ptr_mut(self) as _
             }
             fn is_unique(&self) -> bool {
                 unsafe { sk_refcnt_unique(self.as_vref_ptr()) }
@@ -336,10 +504,10 @@ macro_rules! skia_wrapper {
         impl crate::RefCounted for $name {}
         unsafe impl crate::NotVirtualRefCounted for $name {
             fn as_nvref_ptr(&self) -> *const sk_nvrefcnt_t {
-                self.as_ptr() as _
+                crate::SkiaPtr::as_ptr(self) as _
             }
             fn as_nvref_ptr_mut(&mut self) -> *mut sk_nvrefcnt_t {
-                self.as_ptr_mut() as _
+                crate::SkiaPtrMut::as_ptr_mut(self) as _
             }
             fn is_unique(&self) -> bool {
                 unsafe { sk_nvrefcnt_unique(self.as_nvref_ptr()) }
@@ -362,7 +530,7 @@ macro_rules! skia_wrapper {
         impl Clone for $name {
             fn clone(&self) -> Self {
                 unsafe { $ref(self.inner) };
-                Self { inner: self.inner }
+                Self { inner: self.inner, phantom:std::marker::PhantomData }
             }
         }
         )?
@@ -372,19 +540,28 @@ macro_rules! skia_wrapper {
             /// takes a ptr and increments ref count. Then assumes ownership of it. returns None if nullptr.
             /// # Safety
             /// The original pointer's ownership still resides with the caller, and they must make sure to call unref on it after being done with it.
-            pub(crate) unsafe fn from_borrowed_ptr(ptr: *mut $opaque) -> Option<Self> {
+            pub(crate) unsafe fn from_borrowed_ptr_to_owned(ptr: *mut $opaque) -> Option<Self> {
                 if ptr.is_null() {
                     None
                 } else {
                     unsafe { $ref(ptr) };
-                    Some(Self { inner: ptr })
+                    Some(Self { inner: ptr, phantom: std::marker::PhantomData })
                 }
             }
             )*
         }
     };
     (unique, $name: ident, $opaque: ident, $del: ident ) => {
-        pub type $name = crate::SkiaWrapper<$opaque>;
+        pub type $name = crate::SkiaOwn<$opaque>;
+
+        paste::paste!{
+        /// A simple alias to refer to the SkiaWrapper type with
+        /// no specific ownership marker.
+        /// So, any methods that don't care about ownership (eg: readonly methods) can be
+        /// implemented on this alias for convenience.
+        #[allow(unused)]
+        type [<$name "Gen">]<O> = crate::SkiaWrapper<$opaque, O>;
+        }
         #[cfg(feature = "unsafe_send")]
         unsafe impl Send for $name {}
         #[cfg(feature = "unsafe_send")]
@@ -396,6 +573,7 @@ macro_rules! skia_wrapper {
         }
     };
 }
+
 /// A convenience wrapper that implements some repetitive code for skia objects which are uniquely owned (eg: allocated on heap using new and delete)
 /// usage: `opaque_shared!(StructName, struct_name,  sk_struct_name_delete);`
 /// StructName is just the rust struct name (wrapper)

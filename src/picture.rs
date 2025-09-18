@@ -1,3 +1,4 @@
+use crate::{SkiaPtr, SkiaPtrMut};
 use std::{
     borrow::{Borrow, BorrowMut},
     marker::PhantomData,
@@ -111,17 +112,17 @@ struct PictureCanvas<'a> {
     inner: *mut sk_canvas_t,
     phantom: PhantomData<&'a mut Self>,
 }
-impl<'a> AsMut<Canvas> for PictureCanvas<'a> {
+impl AsMut<Canvas> for PictureCanvas<'_> {
     fn as_mut(&mut self) -> &mut Canvas {
         unsafe { std::mem::transmute(self) }
     }
 }
-impl<'a> Borrow<Canvas> for PictureCanvas<'a> {
+impl Borrow<Canvas> for PictureCanvas<'_> {
     fn borrow(&self) -> &Canvas {
         unsafe { std::mem::transmute(self) }
     }
 }
-impl<'a> BorrowMut<Canvas> for PictureCanvas<'a> {
+impl BorrowMut<Canvas> for PictureCanvas<'_> {
     fn borrow_mut(&mut self) -> &mut Canvas {
         unsafe { std::mem::transmute(self) }
     }

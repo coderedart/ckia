@@ -1,6 +1,7 @@
 #![allow(unused)]
 use std::{
     ffi::{c_void, CStr},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -21,7 +22,7 @@ use ckia::{
 use glfw::{Context, Glfw, GlfwReceiver, PWindow, WindowEvent};
 use glow::HasContext;
 use mlua::Lua;
-const FIRA_CODE_REGULAR_BYTES: &[u8] = include_bytes!("fira_code_regular.ttf");
+const FIRA_CODE_REGULAR_BYTES: &[u8] = include_bytes!("open_sans.ttf");
 
 extern "C" fn get_proc_addr(ctx: *mut c_void, sym: *const i8) -> Option<unsafe extern "C" fn()> {
     unsafe {
@@ -40,7 +41,10 @@ extern "C" fn get_proc_addr(ctx: *mut c_void, sym: *const i8) -> Option<unsafe e
             eprintln!("{sym} is nullptr");
             None
         } else {
-            Some(std::mem::transmute(p))
+            Some(std::mem::transmute::<
+                *const std::ffi::c_void,
+                unsafe extern "C" fn(),
+            >(p))
         }
     }
 }
@@ -70,12 +74,13 @@ fn create_window(size: [u32; 2]) -> (Glfw, PWindow, GlfwReceiver<(f64, WindowEve
     window.make_current();
     (gtx, window, event_receiver)
 }
-fn create_gl_interface_and_direct_context(window: &mut PWindow) -> (GlInterface, DirectContext) {
-    println!("assembling gl interface");
-    let interface =
-        unsafe { GlInterface::new_load_with(|proc_name| window.get_proc_address(proc_name)) };
-    dbg!(interface.validate());
-    println!("making direct context");
+fn create_gl_interface_and_direct_context<F>(get_proc_addr: F) -> (GlInterface, DirectContext)
+where
+    F: FnMut(&str) -> *const c_void,
+{
+    tracing::info!("assembling gl interface");
+    let interface = unsafe { GlInterface::new_load_with(get_proc_addr) };
+    tracing::info!("gl interface validate: {}", interface.validate());
     let dctx = DirectContext::make_gl(&interface);
     (interface, dctx)
 }
@@ -89,7 +94,7 @@ fn create_render_target_and_surface(
     let id = unsafe { glow_context.get_parameter_i32(glow::FRAMEBUFFER_BINDING) };
 
     let (width, height) = window.get_framebuffer_size();
-    println!("creating backend render target with {width} as width and {height} as height");
+    tracing::debug!("creating backend render target with {width} as width and {height} as height");
     let render_target = unsafe {
         BackendRenderTarget::new_gl(
             width,
@@ -118,12 +123,13 @@ pub struct HelperContext {
     pub fontmgr: FontMgr,
     pub fira_typface: Typeface,
     pub fira_font: Font,
+    pub fira_font_scaled: Font,
     pub fira_font_huge: Font,
     pub surface: Surface,
     pub render_target: BackendRenderTarget,
     pub gl_direct_context: DirectContext,
     pub gl_interface: GlInterface,
-    pub glow_context: Arc<glow::Context>,
+    pub glow_context: Rc<glow::Context>,
     pub events_receiver: GlfwReceiver<(f64, WindowEvent)>,
     pub window: PWindow,
     pub glfw_context: Glfw,
@@ -134,12 +140,12 @@ impl HelperContext {
         let (glfw_context, mut window, events_receiver) = create_window(window_width_height);
         let (sx, sy) = window.get_content_scale();
         let glow_context = unsafe {
-            Arc::new(glow::Context::from_loader_function(|s| {
+            Rc::new(glow::Context::from_loader_function(|s| {
                 window.get_proc_address(s)
             }))
         };
         let (gl_interface, mut gl_direct_context) =
-            create_gl_interface_and_direct_context(&mut window);
+            create_gl_interface_and_direct_context(|s| window.get_proc_address(s));
         let (render_target, mut surface) =
             create_render_target_and_surface(&mut window, &glow_context, &mut gl_direct_context);
 
@@ -147,8 +153,9 @@ impl HelperContext {
         let mut fontmgr = FontMgr::create_custom_dir(".").unwrap();
         let mut fira_data = SkiaData::new_with_copy(FIRA_CODE_REGULAR_BYTES);
         let mut fira_tf = fontmgr.create_from_data(&mut fira_data, 0).unwrap();
-        let fira_font = Font::new_with_values(&mut fira_tf, 16.0 * sx, 1.0, 0.0).unwrap();
-        let huge_fira_font = Font::new_with_values(&mut fira_tf, 48.0 * sx, 1.0, 0.0).unwrap();
+        let fira_font = Font::new_with_values(&mut fira_tf, 16.0, 1.0, 0.0).unwrap();
+        let fira_font_scaled = Font::new_with_values(&mut fira_tf, 16.0 * sx, 1.0, 0.0).unwrap();
+        let huge_fira_font = Font::new_with_values(&mut fira_tf, 48.0, 1.0, 0.0).unwrap();
         #[cfg(feature = "mlua")]
         let lua = {
             let lua = Lua::new();
@@ -173,6 +180,7 @@ impl HelperContext {
             fira_font_huge: huge_fira_font,
             surface,
             render_target,
+
             gl_direct_context,
             gl_interface,
             glow_context,
@@ -183,9 +191,14 @@ impl HelperContext {
             events: vec![],
             #[cfg(feature = "mlua")]
             lua,
+            fira_font_scaled,
         }
     }
     pub fn enter_event_loop(mut self, mut painting_fn: impl FnMut(&mut Self)) {
+        let mut vsync = true;
+        let mut fps_reset_time = 0.0;
+        let mut frame_since_reset = 0.0;
+        let mut fps = "invalid".to_string();
         while !self.window.should_close() {
             self.glfw_context.poll_events();
             let mut events = vec![];
@@ -210,9 +223,18 @@ impl HelperContext {
                         self.render_target = render_target;
                         self.surface = surface;
                     },
-                    glfw::WindowEvent::Key(k, _, _, _) => match k {
-                        glfw::Key::Escape => {
-                            self.window.set_should_close(true);
+                    glfw::WindowEvent::Key(k, _, action, _) => match k {
+                        glfw::Key::Escape => self.window.set_should_close(true),
+                        glfw::Key::Space => {
+                            if let glfw::Action::Press = action {
+                                vsync = !vsync;
+                                tracing::info!("setting vsync to: {}", vsync);
+                                self.glfw_context.set_swap_interval(if vsync {
+                                    glfw::SwapInterval::Sync(1)
+                                } else {
+                                    glfw::SwapInterval::None
+                                });
+                            }
                         }
                         _ => {}
                     },
@@ -221,10 +243,32 @@ impl HelperContext {
                 events.push(ev);
             }
             self.events = events;
-            let mut surface_canvas = self.surface.get_canvas();
             // let save_count = surface_canvas.as_mut().save();
             // surface_canvas.as_mut().scale(self.scale[0], self.scale[1]);
             painting_fn(&mut self);
+            {
+                let mut surface_canvas = self.surface.get_canvas();
+
+                let canvas = surface_canvas.as_mut();
+                frame_since_reset += 1.0;
+                let current_time = self.glfw_context.get_time();
+                if current_time - fps_reset_time > 1.0 {
+                    fps = format!(
+                        "fps: {}",
+                        (frame_since_reset / (current_time - fps_reset_time)) as u32
+                    );
+                    frame_since_reset = 0.0;
+                    fps_reset_time = current_time;
+                }
+
+                let mut paint = Paint::default();
+                paint.set_antialias(true);
+                paint.set_color(Color::BLACK);
+                canvas.draw_simple_text(&fps, 10.0, 20.0, &self.fira_font_scaled, &paint);
+
+                canvas.flush();
+                canvas.reset_matrix();
+            }
             // self.surface
             //     .get_canvas()
             //     .as_mut()

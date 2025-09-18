@@ -1,3 +1,4 @@
+use crate::SkiaPtr;
 use std::ffi::CStr;
 
 use crate::bindings::*;

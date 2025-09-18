@@ -1,3 +1,4 @@
+use crate::SkiaPtr;
 use std::{ffi::CStr, marker::PhantomData, mem::transmute};
 
 use crate::bindings::*;
@@ -95,7 +96,7 @@ pub struct MemoryStream<'a> {
     pub(crate) inner: *mut sk_stream_memorystream_t,
     phantom: PhantomData<&'a [u8]>,
 }
-impl<'a> Drop for MemoryStream<'a> {
+impl Drop for MemoryStream<'_> {
     fn drop(&mut self) {
         unsafe {
             sk_memorystream_destroy(self.inner);
@@ -103,7 +104,7 @@ impl<'a> Drop for MemoryStream<'a> {
     }
 }
 #[allow(unused)]
-impl<'a> MemoryStream<'a> {
+impl MemoryStream<'_> {
     #[doc = r" consumes struct and returns a ptr that has ownership."]
     #[doc = r" # Safety"]
     #[doc = r" caller needs to call unref after being done with it."]
@@ -179,7 +180,7 @@ impl<'a, 'b> MemoryStream<'a> {
         }
     }
 }
-unsafe impl<'a> Stream for MemoryStream<'a> {
+unsafe impl Stream for MemoryStream<'_> {
     fn borrow_stream_mut_ptr(&mut self) -> *mut sk_stream_t {
         self.inner as _
     }

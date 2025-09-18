@@ -9,16 +9,15 @@ repository = "https://github.com/coderedart/ckia.git"
 documentation = "https://docs.rs/ckia"
 
 [features]
-default = ["static_linking", "mlua", "reflect"]
+default = ["static_linking"]
 mlua = ["dep:mlua"]
-wasmtime = ["dep:wasmtime"]
-reflect = ["dep:bevy_reflect"]
+
 # Any api that accesses graphics API is not thread-safe (eg: opengl backendRenderTarget or BackendTexture etc..)
 # But others should *Probably* be safe. Avoid it if possible, but otherwise, its a decent approach.
 unsafe_send = []
 # by default, we will try to download pre-built libs from github
 # but this feature will disable that
-no_pre_built_libs = []
+disable_pre_built_libs = []
 # by default, if we fail to download pre-build libs (or above feature is enabled< we build from src.
 # This feature will disable building from src
 disable_build_from_src = []
@@ -37,16 +36,16 @@ disable_caching_downloads_in_user_cache = []
 
 [dependencies]
 paste = { version = "*" }
-mlua = { version = "0.9", features = ["luau"], optional = true }
-wasmtime = { version = "*", optional = true }
-bevy_reflect = { version = "*", optional = true }
+mlua = { version = "0.10", features = ["luau"], optional = true }
 heck = { version = "*" }
+tracing = {version = "*"}
 [dev-dependencies]
 glfw = { version = "*" }
 glow = { version = "*" }
 mlua = { version = "0.9", features = ["luau"] }
-
+tracing = {version = "*"}
 # wasmtime = { version = "*" }
 
 [profile.release]
 lto = "fat"
+debug_info = true

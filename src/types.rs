@@ -73,6 +73,11 @@ pub type TextDecorationMode = tl_text_decoration_mode_t;
 pub type StyleType = tl_style_type_t;
 pub type PlaceholderAlignment = tl_placeholder_alignment_t;
 
+impl Default for ClipOp {
+    fn default() -> Self {
+        Self::INTERSECT_SK_CLIPOP
+    }
+}
 crate::pod_struct!(pub Color4f, sk_color4f_t {
     pub fR: f32,
     pub fG: f32,
@@ -503,6 +508,13 @@ impl SamplingOptions {
         fCubic: CubicResampler { fB: 0.0, fC: 0.0 }.into_native(),
         fFilter: FilterMode::LINEAR_SK_FILTER_MODE,
         fMipmap: MipmapMode::LINEAR_SK_MIPMAP_MODE,
+    };
+    pub const NEAREST: Self = SamplingOptions {
+        fMaxAniso: 0,
+        fUseCubic: false,
+        fCubic: CubicResampler { fB: 0.0, fC: 0.0 }.into_native(),
+        fFilter: FilterMode::NEAREST_SK_FILTER_MODE,
+        fMipmap: MipmapMode::NEAREST_SK_MIPMAP_MODE,
     };
 }
 impl Default for SamplingOptions {

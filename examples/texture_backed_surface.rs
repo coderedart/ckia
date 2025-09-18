@@ -1,5 +1,5 @@
 #![allow(unused)]
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use ckia::{
     bindings::gr_gl_textureinfo_t,
@@ -50,7 +50,6 @@ pub fn main() {
             glfw_context,
             fontmgr,
             fira_font,
-            lua,
             fira_typface,
             fira_font_huge,
             render_target,
@@ -60,6 +59,7 @@ pub fn main() {
             events_receiver,
             window,
             scale,
+            ..
         } = htx;
 
         // if frame_buffer size has changed, we need to recreate the surface backed by texture
@@ -81,7 +81,7 @@ pub fn main() {
         let mut tex_canvas = tsurface_canvas.as_mut();
         assert!(scale[0] >= 1.0);
         tex_canvas.save();
-        tex_canvas.scale(scale[0], scale[1]);
+        tex_canvas.scale(ckia::Vector::new(scale[0], scale[1]));
 
         tex_canvas.clear(Color::TRANSPARENT);
 
@@ -104,12 +104,11 @@ pub fn main() {
             for y_offset in [0.0, 300.0, 600.0] {
                 let skia_stack = tex_canvas.save();
                 {
-                    tex_canvas.translate(x_offset, y_offset);
+                    tex_canvas.translate(ckia::Vector::new(x_offset, y_offset));
                     paint.set_color(Color::WHITE);
                     paint.set_style(PaintStyle::FILL_SK_PAINT_STYLE);
                     tex_canvas.draw_circle(
-                        150.0,
-                        150.0,
+                        ckia::Vector::new(150.0, 150.0),
                         ((current_time as f32).sin().abs() * 75.0) + 50.0,
                         &paint,
                     );
@@ -122,7 +121,7 @@ pub fn main() {
         tex_surface
             .as_mut()
             .unwrap()
-            .draw_to(&mut main_canvas, 0.0, 0.0, &paint);
+            .draw_to(main_canvas, 0.0, 0.0, &paint);
         tex_canvas.restore_to_count(0);
         main_canvas.restore_to_count(0);
         frame_times.push(i.elapsed());
@@ -145,7 +144,7 @@ pub fn main() {
 }
 
 unsafe fn create_texture_backed_surface(
-    glow_context: Arc<glow::Context>,
+    glow_context: Rc<glow::Context>,
     gl_direct_context: &mut DirectContext,
     fb_size: (i32, i32),
 ) -> TextureSurface {
@@ -197,5 +196,5 @@ unsafe fn create_texture_backed_surface(
         &SurfaceProps::new(0, PixelGeometry::UNKNOWN_SK_PIXELGEOMETRY),
     )
     .unwrap();
-    return tex;
+    tex
 }

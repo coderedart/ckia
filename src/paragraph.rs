@@ -1,3 +1,4 @@
+use crate::{SkiaPtr, SkiaPtrMut};
 use std::ffi::CString;
 
 use crate::types::*;
@@ -441,8 +442,8 @@ impl ParagraphBuider {
         unsafe {
             let ptr = tl_paragraph_builder_get_text(self.as_ptr_mut(), &mut len as *mut usize);
             let slice = std::slice::from_raw_parts(ptr as *const u8, len);
-            return std::str::from_utf8(slice)
-                .expect("failed to get text from paragraph builder because its invalid utf-8");
+            std::str::from_utf8(slice)
+                .expect("failed to get text from paragraph builder because its invalid utf-8")
         }
     }
     pub fn reset(&mut self) {
@@ -483,20 +484,19 @@ impl Paragraph {
     }
     ///
     /// # Safety
-    /// If you pass in None, then we return the size of vec needed.
-    /// If you pass in Some, then we will fill as much as we can and still return the vec size needed.
-    /// So, it is upto the user to actually ensure that the returned usize is less than or equal to vec size.
-    /// So that they are not missing any textboxes
+    /// returns the number fo rects.
+    /// Pass in None (or a slice).
+    /// If you pass in slice, we will fill as much as we can.
+    /// Caller must check that the returned length is equal or less than the slice to verify that all rects were filled.
     pub unsafe fn get_rects_for_range(
         &mut self,
         start: u32,
         end: u32,
         hstyle: RectHeightStyle,
         wstyle: RectWidthStyle,
-        vec: Option<&mut Vec<TextBox>>,
+        result: Option<&mut [TextBox]>,
     ) -> usize {
-        let len = vec.as_ref().map(|v| v.len()).unwrap_or_default();
-
+        let len = result.as_deref().map(|r| r.len()).unwrap_or_default();
         unsafe {
             tl_paragraph_get_rects_for_range(
                 self.as_ptr_mut(),
@@ -504,7 +504,8 @@ impl Paragraph {
                 end,
                 hstyle,
                 wstyle,
-                vec.map(|v| v as *mut Vec<TextBox> as *mut tl_text_box_t)
+                result
+                    .map(|v| v.as_ptr() as *mut TextBox)
                     .unwrap_or(std::ptr::null_mut()),
                 len,
             )
@@ -513,16 +514,16 @@ impl Paragraph {
     ///
     /// # Safety
     /// If you pass in None, then we return the size of vec needed.
-    /// If you pass in Some, then we will fill as much as we can and still return the vec size needed.
+    /// If you pass in Some, then we will fill as much as we can and still return the slice size needed.
     /// So, it is upto the user to actually ensure that the returned usize is less than or equal to vec size.
-    /// So that they are not missing any textboxes
-    pub unsafe fn get_rects_for_placeholders(&mut self, vec: Option<&mut Vec<TextBox>>) -> usize {
-        let len = vec.as_ref().map(|v| v.len()).unwrap_or_default();
+    /// So that they are not missing any textboxes          
+    pub unsafe fn get_rects_for_placeholders(&mut self, data: Option<&mut [TextBox]>) -> usize {
+        let len = data.as_ref().map(|v| v.len()).unwrap_or_default();
 
         unsafe {
             tl_paragraph_get_rects_for_placeholders(
                 self.as_ptr_mut(),
-                vec.map(|v| v as *mut Vec<TextBox> as *mut tl_text_box_t)
+                data.map(|v| v.as_mut_ptr() as *mut tl_text_box_t)
                     .unwrap_or(std::ptr::null_mut()),
                 len,
             )

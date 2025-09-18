@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::bindings::*;
+use crate::{SkiaPtr, SkiaPtrMut};
 
 use crate::{path::SkiaPath, IRect, RegionOp};
 
@@ -138,12 +139,12 @@ pub struct RegionIterator<'a> {
     already_done: bool,
     phantom: PhantomData<&'a Region>,
 }
-impl<'a> Drop for RegionIterator<'a> {
+impl Drop for RegionIterator<'_> {
     fn drop(&mut self) {
         unsafe { sk_region_iterator_delete(self.inner) }
     }
 }
-impl<'a> RegionIterator<'a> {
+impl RegionIterator<'_> {
     /// sets the iterator to point to the first [IRect] again.
     pub fn rewind(&mut self) -> bool {
         unsafe { sk_region_iterator_rewind(self.inner) }
@@ -160,7 +161,7 @@ impl<'a> RegionIterator<'a> {
         rect
     }
 }
-impl<'a> Iterator for RegionIterator<'a> {
+impl Iterator for RegionIterator<'_> {
     type Item = IRect;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -179,12 +180,12 @@ pub struct RegionCliperator<'a> {
     already_done: bool,
     phantom: PhantomData<&'a Region>,
 }
-impl<'a> Drop for RegionCliperator<'a> {
+impl Drop for RegionCliperator<'_> {
     fn drop(&mut self) {
         unsafe { sk_region_cliperator_delete(self.inner) }
     }
 }
-impl<'a> RegionCliperator<'a> {
+impl RegionCliperator<'_> {
     pub fn cliperator_done(&mut self) -> bool {
         unsafe { sk_region_cliperator_done(self.inner) }
     }
@@ -197,7 +198,7 @@ impl<'a> RegionCliperator<'a> {
         rect
     }
 }
-impl<'a> Iterator for RegionCliperator<'a> {
+impl Iterator for RegionCliperator<'_> {
     type Item = IRect;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -214,12 +215,12 @@ pub struct RegionSpanerator<'a> {
     inner: *mut sk_region_spanerator_t,
     phantom: PhantomData<&'a Region>,
 }
-impl<'a> Drop for RegionSpanerator<'a> {
+impl Drop for RegionSpanerator<'_> {
     fn drop(&mut self) {
         unsafe { sk_region_spanerator_delete(self.inner) }
     }
 }
-impl<'a> Iterator for RegionSpanerator<'a> {
+impl Iterator for RegionSpanerator<'_> {
     type Item = (i32, i32);
     /// returns (left, right) representing span start and end if interval is found
     fn next(&mut self) -> Option<Self::Item> {

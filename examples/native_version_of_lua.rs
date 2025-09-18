@@ -1,4 +1,4 @@
-#![allow(unused)]
+#[allow(unused)]
 use ckia::{
     bindings::gr_gl_textureinfo_t,
     color::ColorSpace,
@@ -13,7 +13,6 @@ use ckia::{
     BlendMode, ClipOp, Color, ColorType, FontStyleSlant, Matrix, PaintStyle, ParagraphTextAlign,
     PathDirection, PixelGeometry, Point, Rect, ShaderTileMode, SurfaceOrigin,
 };
-use glow::HasContext;
 use helper::HelperContext;
 
 mod helper;
@@ -36,9 +35,20 @@ pub fn main() {
     paint.set_antialias(true);
     paint.set_stroke_width(7.0);
     paint.set_color(DARK_SLATE_BLUE);
+    /// We will just draw lots of tiles of this size
+    const TILE_SIZE: f32 = 100.0;
 
     let mut gradient_shader = Shader::new_linear_gradient(
-        &[Point { x: 100.0, y: 100.0 }, Point { x: 200.0, y: 200.0 }],
+        &[
+            Point {
+                x: TILE_SIZE / 2.0,
+                y: TILE_SIZE / 2.0,
+            },
+            Point {
+                x: TILE_SIZE,
+                y: TILE_SIZE,
+            },
+        ],
         &[VIOLET, YELLOW],
         None,
         ShaderTileMode::MIRROR_SK_SHADER_TILEMODE,
@@ -63,10 +73,12 @@ pub fn main() {
         ImageFilter::new_drop_shadow_only(2.0, 2.0, 5.0, 5.0, trans_black, None, None);
     let mut pb = None;
     let mut para = None;
+    let mut text_paint = ckia::paint::Paint::default();
+    let mut para_or_not = false;
     let mut tsurface: Option<TextureSurface> = None;
     let background_rect = Rect::new(0., 0., 300., 300.);
     let background_color = LIGHT_SKY_BLUE;
-    let background_clip_rect = Rect::new(50., 150., 200., 100.);
+    let background_clip_rect = Rect::new(TILE_SIZE / 4.0, 60., TILE_SIZE * 3. / 4., 30.);
 
     let background_clip_path = {
         let mut p = SkiaPath::default();
@@ -86,54 +98,62 @@ pub fn main() {
             events,
             glfw_context,
             fontmgr,
-            fira_font,
-            lua,
-            fira_typface,
-            fira_font_huge,
-            render_target,
-            gl_direct_context,
-            gl_interface,
-            glow_context,
-            events_receiver,
-            window,
+
             scale,
+            fira_font_scaled,
+            ..
         } = htx;
+        let fira_font = fira_font_scaled;
         if pb.is_none() {
             let mut ps = ParagraphStyle::default();
             ps.set_text_align(ParagraphTextAlign::CENTER_TEXT_ALIGN);
             let mut ts = ps.get_text_style();
             ts.set_foreground(&paint);
+            text_paint = paint.clone();
             ts.set_font_style(&FontStyle::new(
-                700,
-                24,
+                400,
+                16,
                 FontStyleSlant::UPRIGHT_SK_FONT_STYLE_SLANT,
             ));
-            ts.set_font_size(28.0);
+
+            ts.set_font_size(16.0 * scale[0]);
             ps.set_text_style(&ts);
+            ps.set_text_align(ckia::ParagraphTextAlign::START_TEXT_ALIGN);
             let mut fc = FontCollection::default();
-            fc.set_default_font_manager(&fontmgr);
+            fc.set_default_font_manager(fontmgr);
             let mut builder = ParagraphBuider::new(&ps, &fc);
-            builder.add_text("Hello Ckia Native");
+            builder.add_text("Ckia Native");
             let mut new_para = builder.build();
-            new_para.layout(200.0);
+            new_para.layout(1000.0);
             pb = Some(builder);
             para = Some(new_para);
         }
 
         let current_time = glfw_context.get_time();
+        if events.iter().any(|e| match e {
+            glfw::WindowEvent::MouseButton(_, glfw::Action::Release, _) => true,
+            _ => false,
+        }) {
+            if para_or_not {
+                tracing::info!("switching to canvas.draw_simple_text");
+            } else {
+                tracing::info!("switching to paragraph painting");
+            }
+            para_or_not = !para_or_not;
+        }
+        // let mut tsurface_canvas = tsurface.as_mut().unwrap().get_canvas();
+        // let mut tex_canvas = tsurface_canvas.as_mut();
+        // assert!(scale[0] >= 1.0);
+        // tex_canvas.save();
+        // tex_canvas.scale(scale[0], scale[1]);
 
-        let mut tsurface_canvas = tsurface.as_mut().unwrap().get_canvas();
-        let mut tex_canvas = tsurface_canvas.as_mut();
-        assert!(scale[0] >= 1.0);
-        tex_canvas.save();
-        tex_canvas.scale(scale[0], scale[1]);
-
-        tex_canvas.clear(Color::TRANSPARENT);
+        // tex_canvas.clear(Color::TRANSPARENT);
 
         let mut surface_canvas = surface.get_canvas();
-        let mut main_canvas = surface_canvas.as_mut();
-        main_canvas.save();
-        main_canvas.clear(Color::TRANSPARENT);
+        let mut canvas = surface_canvas.as_mut();
+        canvas.save();
+        canvas.scale(ckia::Vector::new(scale[0], scale[1]));
+        canvas.clear(Color::TRANSPARENT);
 
         let i = Instant::now();
         // let mut p = PictureRecorder::default();
@@ -145,36 +165,42 @@ pub fn main() {
         //     }
         // }
         // let pict = p.end_recording();
-        for x_offset in [0.0, 300.0, 600.0, 900.0, 1200.0, 1500.0] {
-            for y_offset in [0.0, 300.0, 600.0] {
-                let skia_stack = tex_canvas.save();
-                tex_canvas.translate(x_offset, y_offset);
+        let local_clip_bounds = canvas.get_local_clip_bounds().unwrap();
+        let x_tiles =
+            ((local_clip_bounds.right - local_clip_bounds.left) / TILE_SIZE).ceil() as i32;
+        let y_tiles =
+            ((local_clip_bounds.bottom - local_clip_bounds.top) / TILE_SIZE).ceil() as i32;
+        for x_index in 0..x_tiles {
+            let x_offset = x_index as f32 * TILE_SIZE;
+            for y_offset in 0..y_tiles {
+                let y_offset = y_offset as f32 * TILE_SIZE;
+                let skia_stack = canvas.save();
+                canvas.translate(ckia::Vector::new(x_offset, y_offset));
                 // gl_canvas.draw_picture(&pict, &Matrix::IDENTITY, &paint);
                 // let main_canvas = main_canvas;
                 // background
                 paint.set_color(background_color);
                 paint.set_style(PaintStyle::FILL_SK_PAINT_STYLE);
-                tex_canvas.draw_rect(&background_rect, &paint);
+                canvas.draw_rect(&background_rect, &paint);
                 // gradient circle
                 paint.set_shader(Some(&mut gradient_shader));
-                tex_canvas.draw_circle(
-                    150.0,
-                    150.0,
-                    ((current_time as f32).sin().abs() * 75.0) + 50.0,
+                canvas.draw_circle(
+                    ckia::Vector::new(TILE_SIZE / 2.0, TILE_SIZE / 2.0),
+                    ((current_time as f32).sin().abs() * TILE_SIZE / 2.0),
                     &paint,
                 );
                 paint.set_shader(None);
                 // draw foreground rect that shows how shadow works
                 // paint.set_image_filter(Some(&mut shadow));
                 paint.set_style(PaintStyle::STROKE_AND_FILL_SK_PAINT_STYLE);
-                tex_canvas.draw_round_rect(&inner_rect, 3.0, 3.0, &paint);
+                canvas.draw_round_rect(&inner_rect, 3.0, 3.0, &paint);
                 // paint.set_image_filter(None);
                 // only shadow
                 // paint.set_image_filter(Some(&mut only_shadow));
                 // paint.set_style(PaintStyle::STROKE_SK_PAINT_STYLE);
                 // canvas.draw_round_rect(&background_clip_rect, 8.0, 8.0, &paint);
                 // paint.set_image_filter(None);
-                tex_canvas.save();
+                canvas.save();
                 {
                     // canvas.clip_path_with_operation(
                     //     &background_clip_path,
@@ -190,38 +216,38 @@ pub fn main() {
                     paint.set_color(FLORAL_WHITE.with_alpha(80));
                     paint.set_style(PaintStyle::STROKE_AND_FILL_SK_PAINT_STYLE);
                     paint.set_blendmode(BlendMode::SRCOVER_SK_BLENDMODE);
-                    tex_canvas.draw_round_rect(&background_clip_rect, 8., 8., &paint);
+                    canvas.draw_round_rect(&background_clip_rect, 8., 8., &paint);
                     // canvas.draw_color(FLORAL_WHITE.with_alpha(140), BlendMode::SRCOVER_SK_BLENDMODE);
                     // main_canvas.restore();
                 }
-                tex_canvas.restore();
-                para.as_mut().unwrap().paint(tex_canvas, 50., 160.);
-                // paint.set_color(BLACK);
-                // paint.set_style(PaintStyle::STROKE_AND_FILL_SK_PAINT_STYLE);
-                // canvas.draw_simple_text(
-                //     &format!("{:.2}", frame_time.as_secs_f64() * 1000.0),
-                //     0.0,
-                //     0.0,
-                //     &fira_font,
-                //     &paint,
-                // );
-                let mut pb = pb.as_mut().unwrap();
-                pb.reset();
-                pb.add_text(&format!("{:.2}", frame_time.as_secs_f64() * 1000.0));
-                let mut ft = pb.build();
-                ft.layout(150.);
-                ft.paint(tex_canvas, 0., 0.);
-                assert_eq!(tex_canvas.get_save_count(), skia_stack + 1);
-                tex_canvas.restore_to_count(skia_stack);
+                canvas.restore();
+                {
+                    canvas.save();
+                    // canvas.scale(2.0, 2.0);
+                    let time_text = format!("{:.2}", frame_time.as_secs_f64() * 1000.0);
+                    if para_or_not {
+                        para.as_mut().unwrap().paint(canvas, 50., 160.);
+                        let mut pb = pb.as_mut().unwrap();
+                        pb.reset();
+                        pb.add_text(&time_text);
+                        let mut ft = pb.build();
+                        ft.layout(TILE_SIZE);
+                        ft.paint(canvas, 0., 0.);
+                    } else {
+                        canvas.draw_simple_text("Ckia Native", 15., 50., fira_font, &text_paint);
+                        canvas.draw_simple_text(&time_text, 0., 0., fira_font, &text_paint);
+                    }
+                    canvas.restore();
+                }
+                canvas.restore_to_count(skia_stack);
             }
         }
 
-        tsurface
-            .as_mut()
-            .unwrap()
-            .draw_to(&mut main_canvas, 0.0, 0.0, &paint);
-        tex_canvas.restore_to_count(0);
-        main_canvas.restore_to_count(0);
+        // tsurface
+        //     .as_mut()
+        //     .unwrap()
+        //     .draw_to(&mut canvas, 0.0, 0.0, &paint);
+        canvas.restore_to_count(0);
         frame_times.push(i.elapsed());
         frame_time = (frame_time + i.elapsed()) / 2;
         if current_time - previous_reset > 1.0 {

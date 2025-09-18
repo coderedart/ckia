@@ -1,12 +1,14 @@
 use crate::filter::ImageFilter;
-use crate::{bindings::*, SkiaOptPtr};
-
+use crate::gr_context::GrRecordingContext;
+use crate::surface::{Surface, SurfaceProps};
+use crate::{bindings::*, ImageInfo, SkiaOptPtr};
 use crate::{
     bitmap::BitMap, color::Color, font::Font, image::Image, paint::Paint, path::SkiaPath,
     picture::Picture, region::Region, rrect::RRect, skia_wrapper, text_blob::TextBlob, BlendMode,
     ClipOp, Color4f, IRect, Matrix, Matrix44, Point, PointMode, Rect, SamplingOptions,
     TextEncoding,
 };
+use crate::{SkiaPtr, SkiaPtrMut};
 
 skia_wrapper!(unique, Canvas, sk_canvas_t, sk_canvas_destroy);
 
@@ -15,36 +17,37 @@ impl Canvas {
         unsafe {
             Self {
                 inner: sk_canvas_new_from_bitmap(bitmap.inner), // the fn will inc ref count
+                phantom: std::marker::PhantomData,
             }
         }
     }
     pub fn clear(&mut self, color: Color) {
         unsafe {
-            sk_canvas_clear(self.inner, color.0);
+            sk_canvas_clear(self.as_ptr_mut(), color.0);
         }
     }
     pub fn clear_color4f(&mut self, color: Color4f) {
         unsafe {
-            sk_canvas_clear_color4f(self.inner, color);
+            sk_canvas_clear_color4f(self.as_ptr_mut(), color);
         }
     }
     pub fn discard(&mut self) {
-        unsafe { sk_canvas_discard(self.inner) }
+        unsafe { sk_canvas_discard(self.as_ptr_mut()) }
     }
     pub fn get_save_count(&mut self) -> i32 {
-        unsafe { sk_canvas_get_save_count(self.inner) }
+        unsafe { sk_canvas_get_save_count(self.as_ptr_mut()) }
     }
     pub fn restore_to_count(&mut self, save_count: i32) {
-        unsafe { sk_canvas_restore_to_count(self.inner, save_count) }
+        unsafe { sk_canvas_restore_to_count(self.as_ptr_mut(), save_count) }
     }
     pub fn draw_color(&mut self, color: Color, mode: BlendMode) {
         unsafe {
-            sk_canvas_draw_color(self.inner, color.0, mode);
+            sk_canvas_draw_color(self.as_ptr_mut(), color.0, mode);
         }
     }
     pub fn draw_color4f(&mut self, color: Color4f, mode: BlendMode) {
         unsafe {
-            sk_canvas_draw_color4f(self.inner, color, mode);
+            sk_canvas_draw_color4f(self.as_ptr_mut(), color, mode);
         }
     }
     pub fn draw_points(&mut self, mode: PointMode, points: &[Point], paint: &Paint) {
@@ -120,6 +123,26 @@ impl Canvas {
             sk_canvas_get_device_clip_bounds(self.as_ptr_mut(), rect.as_ptr_mut()).then_some(rect)
         }
     }
+    pub fn make_surface(
+        &mut self,
+        image_info: &ImageInfo,
+        surface_props: Option<&SurfaceProps>,
+    ) -> Option<Surface> {
+        unsafe {
+            Surface::try_from_owned_ptr(sk_canvas_make_surface(
+                self.as_ptr_mut(),
+                image_info.as_ptr(),
+                surface_props.or_null(),
+            ))
+        }
+    }
+    pub fn get_recording_context(&mut self) -> Option<crate::SkiaRefMut<gr_recording_context_t>> {
+        unsafe {
+            GrRecordingContext::ref_mut_from_borrowed_ptr(sk_canvas_get_recording_context(
+                self.as_ptr_mut(),
+            ))
+        }
+    }
     pub fn save(&mut self) -> i32 {
         unsafe { sk_canvas_save(self.as_ptr_mut()) }
     }
@@ -144,11 +167,11 @@ impl Canvas {
     pub fn restore(&mut self) {
         unsafe { sk_canvas_restore(self.as_ptr_mut()) }
     }
-    pub fn translate(&mut self, dx: f32, dy: f32) {
-        unsafe { sk_canvas_translate(self.as_ptr_mut(), dx, dy) }
+    pub fn translate(&mut self, delta: crate::Vector) {
+        unsafe { sk_canvas_translate(self.as_ptr_mut(), delta.x, delta.y) }
     }
-    pub fn scale(&mut self, sx: f32, sy: f32) {
-        unsafe { sk_canvas_scale(self.as_ptr_mut(), sx, sy) }
+    pub fn scale(&mut self, scale_factor: crate::Vector) {
+        unsafe { sk_canvas_scale(self.as_ptr_mut(), scale_factor.x, scale_factor.y) }
     }
     pub fn rotate_degrees(&mut self, degrees: f32) {
         unsafe { sk_canvas_rotate_degrees(self.as_ptr_mut(), degrees) }
@@ -156,8 +179,8 @@ impl Canvas {
     pub fn rotate_radians(&mut self, radians: f32) {
         unsafe { sk_canvas_rotate_radians(self.as_ptr_mut(), radians) }
     }
-    pub fn skew(&mut self, sx: f32, sy: f32) {
-        unsafe { sk_canvas_skew(self.as_ptr_mut(), sx, sy) }
+    pub fn skew(&mut self, skew_factor: crate::Vector) {
+        unsafe { sk_canvas_skew(self.as_ptr_mut(), skew_factor.x, skew_factor.y) }
     }
     pub fn concat(&mut self, mat: &Matrix44) {
         unsafe { sk_canvas_concat(self.as_ptr_mut(), mat.as_ptr()) }
@@ -180,8 +203,8 @@ impl Canvas {
     pub fn draw_rrect(&mut self, rrect: &RRect, paint: &Paint) {
         unsafe { sk_canvas_draw_rrect(self.as_ptr_mut(), rrect.as_ptr(), paint.as_ptr()) }
     }
-    pub fn draw_circle(&mut self, cx: f32, cy: f32, rad: f32, paint: &Paint) {
-        unsafe { sk_canvas_draw_circle(self.as_ptr_mut(), cx, cy, rad, paint.as_ptr()) }
+    pub fn draw_circle(&mut self, center: crate::Point, rad: f32, paint: &Paint) {
+        unsafe { sk_canvas_draw_circle(self.as_ptr_mut(), center.x, center.y, rad, paint.as_ptr()) }
     }
     pub fn draw_oval(&mut self, rect: &Rect, paint: &Paint) {
         unsafe { sk_canvas_draw_oval(self.as_ptr_mut(), rect.as_ptr(), paint.as_ptr()) }
@@ -192,19 +215,18 @@ impl Canvas {
     pub fn draw_image(
         &mut self,
         image: &Image,
-        x: f32,
-        y: f32,
+        left_top: Point,
         sampling: &SamplingOptions,
-        paint: &Paint,
+        paint: Option<&Paint>,
     ) {
         unsafe {
             sk_canvas_draw_image(
                 self.as_ptr_mut(),
                 image.as_ptr(),
-                x,
-                y,
+                left_top.x,
+                left_top.y,
                 sampling.as_ptr(),
-                paint.as_ptr(),
+                paint.or_null(),
             )
         }
     }
